@@ -446,9 +446,15 @@ function ingredientWeight(ingredient) {
   return null;
 }
 
-function ingredientLabel(ingredient) {
+function formatIngredientAmount(value) {
+  return new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(value);
+}
+
+function ingredientLabel(ingredient, factor = 1) {
   const item = normalizeIngredient(ingredient);
-  const amount = item.amount !== "" ? `${String(item.amount).replace(".", ",")} ${item.unit} ` : "";
+  const numericAmount = Number(item.amount);
+  const hasAmount = item.amount !== "" && Number.isFinite(numericAmount);
+  const amount = hasAmount ? `${formatIngredientAmount(numericAmount * factor)} ${item.unit} ` : "";
   return `${amount}${item.name}`.trim();
 }
 
@@ -793,6 +799,7 @@ function openForm(recipe = null, expectedVersion = null) {
   document.querySelector("#recipeId").value = recipe?.id || "";
   document.querySelector("#titleInput").value = recipe?.title || "";
   document.querySelector("#categoryInput").value = recipe?.category || "Vorspeise";
+  document.querySelector("#servingsInput").value = recipe?.servings ?? (recipe ? "" : 4);
   document.querySelector("#linksInput").value = recipe?.links.join("\n") || "";
   setNutritionValues(recipe?.nutrition || {});
   setBarcodeStatus("");
@@ -822,6 +829,7 @@ function openDetail(id) {
   const links = (recipe.links || []).map(validUrl).filter(Boolean);
   const nutrition = recipe.nutrition || {};
   const products = recipe.products || [];
+  const baseServings = Number(recipe.servings) > 0 ? Number(recipe.servings) : null;
   const components = recipe.components?.length ? recipe.components : [normalizeComponent({ name: "Allgemein", instructions: recipe.instructions || "" })];
   const nutritionRows = Object.entries(nutritionLabels)
     .map(([key, [label, unit]]) => {
@@ -834,7 +842,7 @@ function openDetail(id) {
       .map((item, index) => ({ ingredient: normalizeIngredient(item), index }))
       .filter(({ ingredient }) => ingredient.componentId === component.id);
     const shoppingList = componentIngredients.length
-      ? componentIngredients.map(({ ingredient, index }) => `<label class="shopping-item${ingredient.checked ? " checked" : ""}"><input class="shopping-check" data-index="${index}" type="checkbox" ${ingredient.checked ? "checked" : ""}><span>${escapeHtml(ingredientLabel(ingredient))}</span></label>`).join("")
+      ? componentIngredients.map(({ ingredient, index }) => `<label class="shopping-item${ingredient.checked ? " checked" : ""}"><input class="shopping-check" data-index="${index}" type="checkbox" ${ingredient.checked ? "checked" : ""}><span class="scaled-ingredient-label" data-index="${index}">${escapeHtml(ingredientLabel(ingredient))}</span></label>`).join("")
       : '<p class="empty-detail-info">Für diesen Teil wurden noch keine Zutaten zugeordnet.</p>';
     return `<section class="recipe-part-detail"><h3 class="recipe-part-title">${escapeHtml(component.name)}</h3><div><h3>Zutaten &amp; Einkaufsliste</h3><div class="ingredient-list">${shoppingList}</div></div><div><h3>Zubereitung</h3><p class="instructions">${escapeHtml(component.instructions)}</p></div></section>`;
   }).join("");
@@ -853,6 +861,7 @@ function openDetail(id) {
           <button type="button" data-action="delete" title="Löschen" aria-label="Rezept löschen">⌫</button>
         </div>
       </div>
+      ${baseServings ? `<div class="servings-calculator"><label for="detailServingsInput">Portionen</label><input id="detailServingsInput" type="number" min="0.5" max="1000" step="0.5" value="${escapeHtml(String(baseServings))}"><span>Grundrezept für ${escapeHtml(formatIngredientAmount(baseServings))} Portionen</span></div>` : '<p class="servings-missing">Für dieses Rezept ist noch keine Grund-Portionszahl hinterlegt. Du kannst sie über „Bearbeiten“ ergänzen.</p>'}
       <div class="recipe-parts-detail">${partsHtml}</div>
       <section class="detail-links"><h3>Nährwertangaben</h3><table class="nutrition-table"><caption>Durchschnittliche Werte pro 100 g${recipe.nutritionCalculation ? ` · berechnet aus ${recipe.nutritionCalculation.totalWeightGrams} g Zutaten` : ""}</caption><tbody>${nutritionRows}</tbody></table>${hasNutritionValues(nutrition) ? '<p class="nutrition-note">Näherungswerte auf Grundlage der hinterlegten Zutatenmengen.</p>' : '<p class="empty-detail-info">Für dieses Rezept wurden noch keine Nährwerte berechnet.</p>'}</section>
       ${products.length ? `<section class="detail-links"><h3>Gescannte Produkte</h3><div class="product-detail-list">${products.map(product => `<article class="product-detail"><strong>${escapeHtml(product.name)} · EAN ${escapeHtml(product.barcode)}</strong>${product.ingredientText ? `<p><b>Zutaten:</b> ${escapeHtml(product.ingredientText)}</p>` : ""}</article>`).join("")}</div><p class="nutrition-note">Produktdaten: Open Food Facts</p></section>` : ""}
@@ -861,6 +870,16 @@ function openDetail(id) {
   detail.querySelector(".detail-close").addEventListener("click", () => detailModal.close());
   detail.querySelector('[data-action="edit"]').addEventListener("click", () => { detailModal.close(); openForm(recipe, detailRecipeVersion); });
   detail.querySelector('[data-action="delete"]').addEventListener("click", () => deleteRecipe(recipe, detailRecipeVersion));
+  const servingsInput = detail.querySelector("#detailServingsInput");
+  if (servingsInput) servingsInput.addEventListener("input", event => {
+    const selectedServings = Number(event.target.value);
+    if (!(selectedServings > 0)) return;
+    const factor = selectedServings / baseServings;
+    detail.querySelectorAll(".scaled-ingredient-label").forEach(label => {
+      const ingredient = recipe.ingredients[Number(label.dataset.index)];
+      label.textContent = ingredientLabel(ingredient, factor);
+    });
+  });
   detail.querySelectorAll(".shopping-check").forEach(checkbox => checkbox.addEventListener("change", async event => {
     if (!ensureCanEdit()) {
       event.target.checked = !event.target.checked;
@@ -938,6 +957,9 @@ recipeForm.addEventListener("submit", async event => {
     id: id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
     title: document.querySelector("#titleInput").value.trim(),
     category: document.querySelector("#categoryInput").value,
+    servings: document.querySelector("#servingsInput").value === ""
+      ? null
+      : Number(document.querySelector("#servingsInput").value),
     image: formImage,
     ingredients,
     instructions: components.map(component => `${component.name}:\n${component.instructions}`).join("\n\n"),

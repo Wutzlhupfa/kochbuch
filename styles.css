@@ -223,6 +223,11 @@ footer { display: flex; justify-content: space-between; align-items: center; pad
 .detail-title-row h2 { max-width: 620px; font-size: 50px; }
 .detail-actions { display: flex; gap: 8px; }
 .detail-actions button { min-width: 40px; height: 40px; border: 1px solid var(--line); background: transparent; border-radius: 50%; cursor: pointer; }
+.servings-calculator { display: flex; align-items: center; gap: 12px; margin-top: 24px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 4px; background: #f8f5ed; }
+.servings-calculator label { font-size: 12px; font-weight: 700; }
+.servings-calculator input { width: 92px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 3px; background: white; font-weight: 700; }
+.servings-calculator span { color: var(--muted); font-size: 11px; }
+.servings-missing { margin: 24px 0 0; padding: 12px 14px; border-left: 3px solid var(--line); color: var(--muted); background: #faf8f2; font-size: 12px; }
 .detail-columns { display: grid; grid-template-columns: minmax(200px, .7fr) 1.3fr; gap: 50px; margin-top: 38px; padding-top: 34px; border-top: 1px solid var(--line); }
 .detail-columns h3, .detail-links h3 { margin: 0 0 17px; font-size: 24px; }
 .ingredient-list { margin: 0; padding: 0; list-style: none; }
@@ -262,6 +267,7 @@ footer { display: flex; justify-content: space-between; align-items: center; pad
   .detail-hero { height: 220px; }
   .detail-title-row, .detail-columns { grid-template-columns: 1fr; flex-direction: column; }
   .detail-title-row h2 { font-size: 40px; }
+  .servings-calculator { align-items: flex-start; flex-wrap: wrap; }
   .detail-columns { display: grid; gap: 30px; }
   .barcode-controls, .nutrition-grid { grid-template-columns: 1fr; }
   .ingredient-row { grid-template-columns: 28px 1fr 1fr; }
