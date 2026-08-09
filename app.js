@@ -5,6 +5,10 @@ const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBL
 let recipes = [];
 let storageMode = "checking";
 let currentUser = null;
+let recipeVersions = new Map();
+let editingRecipeVersion = null;
+let cloudWriteInProgress = 0;
+let cloudRefreshStarted = false;
 let activeCategory = "Alle";
 let searchTerm = "";
 let formProducts = [];
@@ -75,11 +79,11 @@ async function loadRecipes() {
     try {
       const { data, error } = await supabaseClient
         .from("recipes")
-        .select("data, updated_at")
+        .select("id, data, updated_at")
         .order("updated_at", { ascending: false });
       if (error) throw error;
       if (data.length) {
-        recipes = data.map(row => row.data);
+        applyCloudRows(data);
         setStorageStatus("cloud", currentUser
           ? "Zentral in Supabase gespeichert"
           : "Zentrale Sammlung · zum Bearbeiten anmelden");
@@ -88,7 +92,8 @@ async function loadRecipes() {
 
       recipes = await loadPublishedRecipes();
       if (currentUser && recipes.length) {
-        await saveRecipes();
+        await importRecipesToCloud(recipes);
+        await refreshRecipesFromCloud({ updateStatus: false });
         setStorageStatus("cloud", "Bestehende Sammlung nach Supabase importiert");
       } else {
         setStorageStatus("published", "Veröffentlichte Sammlung · zum Importieren anmelden");
@@ -109,29 +114,62 @@ async function loadRecipes() {
   }
 }
 
-async function saveRecipes() {
+function applyCloudRows(rows) {
+  recipes = rows.map(row => row.data);
+  recipeVersions = new Map(rows.map(row => [row.id, row.updated_at]));
+}
+
+async function importRecipesToCloud(items) {
   if (supabaseClient && currentUser) {
-    const rows = recipes.map(recipe => ({
+    const timestamp = new Date().toISOString();
+    const rows = items.map(recipe => ({
       id: recipe.id,
       data: recipe,
-      updated_at: new Date().toISOString(),
+      updated_at: timestamp,
       updated_by: currentUser.id
     }));
-    const { data: existing, error: readError } = await supabaseClient.from("recipes").select("id");
-    if (readError) throw new Error(`Cloud-Speicher konnte nicht gelesen werden: ${readError.message}`);
     if (rows.length) {
       const { error } = await supabaseClient.from("recipes").upsert(rows, { onConflict: "id" });
       if (error) throw new Error(`Cloud-Speichern fehlgeschlagen: ${error.message}`);
     }
-    const currentIds = new Set(rows.map(row => row.id));
-    const deletedIds = (existing || []).map(row => row.id).filter(id => !currentIds.has(id));
-    if (deletedIds.length) {
-      const { error } = await supabaseClient.from("recipes").delete().in("id", deletedIds);
-      if (error) throw new Error(`Cloud-Löschen fehlgeschlagen: ${error.message}`);
-    }
     localStorage.removeItem(STORAGE_KEY);
     setStorageStatus("cloud", "Zentral in Supabase gespeichert");
     return true;
+  }
+
+  return saveRecipesToLocalServer();
+}
+
+async function saveRecipeToCloud(recipe, { expectedVersion = null, isNew = false } = {}) {
+  if (supabaseClient && currentUser) {
+    cloudWriteInProgress += 1;
+    try {
+      const timestamp = new Date().toISOString();
+      const row = {
+        id: recipe.id,
+        data: recipe,
+        updated_at: timestamp,
+        updated_by: currentUser.id
+      };
+      let result;
+      if (isNew) {
+        result = await supabaseClient.from("recipes").insert(row).select("updated_at");
+      } else {
+        let query = supabaseClient.from("recipes").update(row).eq("id", recipe.id);
+        if (expectedVersion) query = query.eq("updated_at", expectedVersion);
+        result = await query.select("updated_at");
+      }
+      if (result.error) throw new Error(`Cloud-Speichern fehlgeschlagen: ${result.error.message}`);
+      if (!result.data?.length) {
+        throw new Error("Dieses Rezept wurde inzwischen auf einem anderen Gerät verändert. Die neue Version wurde geladen; bitte deine Änderung erneut eingeben.");
+      }
+      recipeVersions.set(recipe.id, result.data[0].updated_at);
+      localStorage.removeItem(STORAGE_KEY);
+      setStorageStatus("cloud", "Zentral in Supabase gespeichert");
+      return true;
+    } finally {
+      cloudWriteInProgress -= 1;
+    }
   }
 
   if (supabaseClient && !currentUser) {
@@ -141,6 +179,32 @@ async function saveRecipes() {
     return false;
   }
 
+  return saveRecipesToLocalServer();
+}
+
+async function deleteRecipeFromCloud(recipe) {
+  if (supabaseClient && currentUser) {
+    cloudWriteInProgress += 1;
+    try {
+      let query = supabaseClient.from("recipes").delete().eq("id", recipe.id);
+      const expectedVersion = recipeVersions.get(recipe.id);
+      if (expectedVersion) query = query.eq("updated_at", expectedVersion);
+      const { data, error } = await query.select("id");
+      if (error) throw new Error(`Cloud-Löschen fehlgeschlagen: ${error.message}`);
+      if (!data?.length) {
+        throw new Error("Dieses Rezept wurde inzwischen auf einem anderen Gerät verändert und deshalb nicht gelöscht. Bitte die Seite neu laden.");
+      }
+      recipeVersions.delete(recipe.id);
+      setStorageStatus("cloud", "Rezept zentral gelöscht");
+      return true;
+    } finally {
+      cloudWriteInProgress -= 1;
+    }
+  }
+  return saveRecipesToLocalServer();
+}
+
+async function saveRecipesToLocalServer() {
   try {
     const response = await fetch("/api/recipes", {
       method: "PUT",
@@ -157,6 +221,38 @@ async function saveRecipes() {
     alert("Der Programmordner ist gerade nicht erreichbar. Das Rezept wurde vorsichtshalber nur im Browser gespeichert. Starte die Website mit server.py, damit es in data/recipes.json geschrieben wird.");
     return false;
   }
+}
+
+async function refreshRecipesFromCloud({ updateStatus = true } = {}) {
+  if (!supabaseClient || cloudWriteInProgress) return false;
+  const { data, error } = await supabaseClient
+    .from("recipes")
+    .select("id, data, updated_at")
+    .order("updated_at", { ascending: false });
+  if (error) {
+    console.error("Cloud-Aktualisierung fehlgeschlagen:", error);
+    return false;
+  }
+  applyCloudRows(data);
+  normalizeAllRecipes();
+  render();
+  if (updateStatus) {
+    setStorageStatus("cloud", currentUser
+      ? "Zentral synchronisiert"
+      : "Zentrale Sammlung · zum Bearbeiten anmelden");
+  }
+  return true;
+}
+
+function startAutomaticCloudRefresh() {
+  if (!supabaseClient || cloudRefreshStarted) return;
+  cloudRefreshStarted = true;
+  setInterval(() => {
+    if (!document.hidden) refreshRecipesFromCloud();
+  }, 5000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshRecipesFromCloud();
+  });
 }
 
 function escapeHtml(value = "") {
@@ -661,8 +757,9 @@ function render() {
   document.querySelector("#countDessert").textContent = recipes.filter(r => r.category === "Nachspeise").length;
 }
 
-function openForm(recipe = null) {
+function openForm(recipe = null, expectedVersion = null) {
   if (!ensureCanEdit()) return;
+  editingRecipeVersion = recipe ? (expectedVersion || recipeVersions.get(recipe.id) || null) : null;
   recipeForm.reset();
   formProducts = typeof structuredClone === "function" ? structuredClone(recipe?.products || []) : JSON.parse(JSON.stringify(recipe?.products || []));
   formComponents = typeof structuredClone === "function" ? structuredClone(recipe?.components || []) : JSON.parse(JSON.stringify(recipe?.components || []));
@@ -695,11 +792,17 @@ function openForm(recipe = null) {
   setTimeout(() => document.querySelector("#titleInput").focus(), 50);
 }
 
-function closeForm() { stopBarcodeScanner(); clearPreviewObjectUrl(); recipeModal.close(); }
+function closeForm() {
+  stopBarcodeScanner();
+  clearPreviewObjectUrl();
+  editingRecipeVersion = null;
+  recipeModal.close();
+}
 
 function openDetail(id) {
   const recipe = recipes.find(item => item.id === id);
   if (!recipe) return;
+  let detailRecipeVersion = recipeVersions.get(id) || null;
   const imageUrl = validUrl(recipe.image);
   const links = (recipe.links || []).map(validUrl).filter(Boolean);
   const nutrition = recipe.nutrition || {};
@@ -741,33 +844,46 @@ function openDetail(id) {
       <section class="detail-links"><h3>Links</h3>${links.length ? `<div class="link-list">${links.map((url, index) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${url.includes("instagram.com") ? "Instagram" : `Webseite ${index + 1}`} ↗</a>`).join("")}</div>` : '<p class="empty-detail-info">Für dieses Rezept wurden noch keine Links hinterlegt.</p>'}</section>
     </div>`;
   detail.querySelector(".detail-close").addEventListener("click", () => detailModal.close());
-  detail.querySelector('[data-action="edit"]').addEventListener("click", () => { detailModal.close(); openForm(recipe); });
-  detail.querySelector('[data-action="delete"]').addEventListener("click", () => deleteRecipe(recipe));
+  detail.querySelector('[data-action="edit"]').addEventListener("click", () => { detailModal.close(); openForm(recipe, detailRecipeVersion); });
+  detail.querySelector('[data-action="delete"]').addEventListener("click", () => deleteRecipe(recipe, detailRecipeVersion));
   detail.querySelectorAll(".shopping-check").forEach(checkbox => checkbox.addEventListener("change", async event => {
     if (!ensureCanEdit()) {
       event.target.checked = !event.target.checked;
       return;
     }
     const ingredient = recipe.ingredients[Number(event.target.dataset.index)];
+    const previousChecked = ingredient.checked;
     ingredient.checked = event.target.checked;
     event.target.closest(".shopping-item").classList.toggle("checked", event.target.checked);
-    await saveRecipes();
+    try {
+      await saveRecipeToCloud(recipe, { expectedVersion: detailRecipeVersion });
+      detailRecipeVersion = recipeVersions.get(recipe.id) || detailRecipeVersion;
+    } catch (error) {
+      ingredient.checked = previousChecked;
+      event.target.checked = previousChecked;
+      event.target.closest(".shopping-item").classList.toggle("checked", previousChecked);
+      alert(error.message);
+      if (error.message.includes("inzwischen")) {
+        detailModal.close();
+        await refreshRecipesFromCloud();
+      }
+    }
   }));
   detailModal.showModal();
 }
 
-async function deleteRecipe(recipe) {
+async function deleteRecipe(recipe, expectedVersion = null) {
   if (!ensureCanEdit()) return;
   if (!confirm(`„${recipe.title}“ wirklich löschen?`)) return;
-  const previousRecipes = recipes;
-  recipes = recipes.filter(item => item.id !== recipe.id);
   try {
-    await saveRecipes();
+    if (expectedVersion) recipeVersions.set(recipe.id, expectedVersion);
+    await deleteRecipeFromCloud(recipe);
+    recipes = recipes.filter(item => item.id !== recipe.id);
     detailModal.close();
     render();
   } catch (error) {
-    recipes = previousRecipes;
     alert(error.message);
+    if (error.message.includes("inzwischen")) await refreshRecipesFromCloud();
   }
 }
 
@@ -813,12 +929,16 @@ recipeForm.addEventListener("submit", async event => {
   if (id) recipes = recipes.map(item => item.id === id ? recipe : item);
   else recipes = [recipe, ...recipes];
   try {
-    await saveRecipes();
+    await saveRecipeToCloud(recipe, { expectedVersion: editingRecipeVersion, isNew: !id });
     closeForm();
     render();
   } catch (error) {
     recipes = previousRecipes;
     alert(error.message);
+    if (error.message.includes("inzwischen")) {
+      closeForm();
+      await refreshRecipesFromCloud();
+    }
   }
 });
 
@@ -911,6 +1031,7 @@ async function initialize() {
   await loadRecipes();
   normalizeAllRecipes();
   render();
+  startAutomaticCloudRefresh();
 }
 
 initialize();
