@@ -17,9 +17,13 @@
           <span class="brand-mark" aria-hidden="true">K</span>
           <span>Küchenbuch</span>
         </a>
-        <button class="primary-button header-button" id="newRecipeButton" type="button">
-          <span aria-hidden="true">＋</span> Neues Rezept
-        </button>
+        <div class="header-actions">
+          <span class="auth-user" id="authUser">Nicht angemeldet</span>
+          <button class="secondary-button header-auth-button" id="authButton" type="button">Anmelden</button>
+          <button class="primary-button header-button" id="newRecipeButton" type="button">
+            <span aria-hidden="true">＋</span> Neues Rezept
+          </button>
+        </div>
       </header>
 
       <main>
@@ -183,6 +187,27 @@
       <article id="recipeDetail"></article>
     </dialog>
 
+    <dialog class="modal auth-modal" id="authModal">
+      <form class="auth-form" id="authForm">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Geschützter Bereich</p>
+            <h2>Anmelden</h2>
+          </div>
+          <button class="icon-button" id="closeAuthButton" type="button" aria-label="Fenster schließen">×</button>
+        </div>
+        <p class="auth-copy">Melde dich mit dem Benutzerkonto aus Supabase an, um Rezepte und Bilder zentral zu speichern.</p>
+        <label>E-Mail-Adresse
+          <input id="authEmail" type="email" autocomplete="username" required />
+        </label>
+        <label>Passwort
+          <input id="authPassword" type="password" autocomplete="current-password" required />
+        </label>
+        <p class="auth-error" id="authError" role="alert"></p>
+        <button class="primary-button" type="submit">Anmelden</button>
+      </form>
+    </dialog>
+
     <template id="recipeCardTemplate">
       <article class="recipe-card">
         <button class="card-open" type="button">
@@ -199,6 +224,7 @@
       </article>
     </template>
 
-    <script src="app.js?v=20260804-4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js?v=20260809-1"></script>
   </body>
 </html>

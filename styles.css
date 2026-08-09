@@ -31,6 +31,9 @@ button { color: inherit; }
   justify-content: space-between;
   border-bottom: 1px solid var(--line);
 }
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.auth-user { max-width: 190px; overflow: hidden; color: var(--muted); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.header-auth-button { min-height: 40px; padding: 0 15px; white-space: nowrap; }
 .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--ink); text-decoration: none; font-size: 18px; font-weight: 700; }
 .brand-mark {
   display: grid;
@@ -120,6 +123,14 @@ footer { display: flex; justify-content: space-between; align-items: center; pad
 .recipe-form { padding: 38px; }
 .modal-header { display: flex; align-items: start; justify-content: space-between; margin-bottom: 28px; }
 .modal-header h2 { font-size: 42px; }
+.auth-modal { width: min(480px, calc(100% - 32px)); }
+.auth-form { display: grid; gap: 17px; padding: 38px; }
+.auth-form .modal-header { margin-bottom: 0; }
+.auth-form label { display: grid; gap: 7px; font-size: 12px; font-weight: 700; }
+.auth-form input { width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 3px; outline: none; background: white; font-size: 14px; }
+.auth-form input:focus { border-color: var(--sage-dark); box-shadow: 0 0 0 3px rgba(82,107,84,.09); }
+.auth-copy { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.auth-error { min-height: 18px; margin: 0; color: #a14f3d; font-size: 12px; font-weight: 600; }
 .icon-button { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: transparent; cursor: pointer; font-size: 26px; line-height: 1; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .form-grid label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; font-weight: 700; letter-spacing: .025em; }
@@ -234,6 +245,9 @@ footer { display: flex; justify-content: space-between; align-items: center; pad
   .site-header, main, footer { width: min(100% - 28px, 1180px); }
   .site-header { height: 76px; }
   .header-button { min-height: 40px; padding: 0 15px; }
+  .auth-user { display: none; }
+  .header-actions { gap: 6px; }
+  .header-auth-button { padding: 0 12px; }
   .hero { padding: 76px 0; }
   h1 { font-size: 56px; }
   .hero-copy { font-size: 17px; }

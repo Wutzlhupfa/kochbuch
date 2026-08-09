@@ -1,6 +1,10 @@
 const STORAGE_KEY = "kuechenbuch-recipes-v1";
+const SUPABASE_URL = "https://ohdamaixedupjivfobsv.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_65F5g7J7EJ0LzAqxchLKCA_6j9K31yM";
+const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 let recipes = [];
 let storageMode = "checking";
+let currentUser = null;
 let activeCategory = "Alle";
 let searchTerm = "";
 let formProducts = [];
@@ -33,38 +37,110 @@ function setStorageStatus(mode, message) {
   storageMode = mode;
   const status = document.querySelector("#storageStatus");
   document.querySelector("#storageStatusText").textContent = message;
-  status.classList.toggle("browser-storage", mode !== "file");
+  status.classList.toggle("browser-storage", ["browser", "error", "published"].includes(mode));
+}
+
+function updateAuthInterface() {
+  const authButton = document.querySelector("#authButton");
+  const authUser = document.querySelector("#authUser");
+  authButton.textContent = currentUser ? "Abmelden" : "Anmelden";
+  authUser.textContent = currentUser?.email || "Nicht angemeldet";
+}
+
+function openAuth() {
+  document.querySelector("#authError").textContent = "";
+  const modal = document.querySelector("#authModal");
+  if (!modal.open) modal.showModal();
+  setTimeout(() => document.querySelector("#authEmail").focus(), 50);
+}
+
+function closeAuth() {
+  document.querySelector("#authModal").close();
+}
+
+function ensureCanEdit() {
+  if (currentUser) return true;
+  openAuth();
+  return false;
+}
+
+async function loadPublishedRecipes() {
+  const response = await fetch("data/recipes.json", { cache: "no-store" });
+  if (!response.ok) throw new Error("Veröffentlichte Sammlung nicht gefunden");
+  return response.json();
 }
 
 async function loadRecipes() {
-  try {
-    const response = await fetch("/api/recipes", { cache: "no-store" });
-    if (!response.ok) throw new Error("Lokale Programmschnittstelle nicht erreichbar");
-    recipes = await response.json();
-    setStorageStatus("file", "Sicher im Programmordner gespeichert");
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from("recipes")
+        .select("data, updated_at")
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      if (data.length) {
+        recipes = data.map(row => row.data);
+        setStorageStatus("cloud", currentUser
+          ? "Zentral in Supabase gespeichert"
+          : "Zentrale Sammlung · zum Bearbeiten anmelden");
+        return;
+      }
 
-    const browserBackup = loadBrowserBackup();
-    if (browserBackup.length && confirm("Es wurden Rezepte aus der bisherigen Browserspeicherung gefunden. Sollen diese jetzt in den Programmordner übernommen werden?")) {
-      recipes = browserBackup;
-      await saveRecipes();
-      localStorage.removeItem(STORAGE_KEY);
+      recipes = await loadPublishedRecipes();
+      if (currentUser && recipes.length) {
+        await saveRecipes();
+        setStorageStatus("cloud", "Bestehende Sammlung nach Supabase importiert");
+      } else {
+        setStorageStatus("published", "Veröffentlichte Sammlung · zum Importieren anmelden");
+      }
+      return;
+    } catch (error) {
+      console.error("Supabase konnte nicht geladen werden:", error);
     }
+  }
+
+  try {
+    recipes = await loadPublishedRecipes();
+    setStorageStatus("published", "Veröffentlichte Sammlung · Cloud nicht erreichbar");
     return;
   } catch {
-    try {
-      const response = await fetch("data/recipes.json", { cache: "no-store" });
-      if (!response.ok) throw new Error();
-      recipes = await response.json();
-      setStorageStatus("published", "Veröffentlichte Sammlung – Änderungen nur in diesem Browser");
-      return;
-    } catch {
-      recipes = loadBrowserBackup();
-      setStorageStatus("browser", "Nur im Browser gespeichert – bitte server.py starten");
-    }
+    recipes = loadBrowserBackup();
+    setStorageStatus("browser", "Cloud nicht erreichbar · Browser-Sicherung geladen");
   }
 }
 
 async function saveRecipes() {
+  if (supabaseClient && currentUser) {
+    const rows = recipes.map(recipe => ({
+      id: recipe.id,
+      data: recipe,
+      updated_at: new Date().toISOString(),
+      updated_by: currentUser.id
+    }));
+    const { data: existing, error: readError } = await supabaseClient.from("recipes").select("id");
+    if (readError) throw new Error(`Cloud-Speicher konnte nicht gelesen werden: ${readError.message}`);
+    if (rows.length) {
+      const { error } = await supabaseClient.from("recipes").upsert(rows, { onConflict: "id" });
+      if (error) throw new Error(`Cloud-Speichern fehlgeschlagen: ${error.message}`);
+    }
+    const currentIds = new Set(rows.map(row => row.id));
+    const deletedIds = (existing || []).map(row => row.id).filter(id => !currentIds.has(id));
+    if (deletedIds.length) {
+      const { error } = await supabaseClient.from("recipes").delete().in("id", deletedIds);
+      if (error) throw new Error(`Cloud-Löschen fehlgeschlagen: ${error.message}`);
+    }
+    localStorage.removeItem(STORAGE_KEY);
+    setStorageStatus("cloud", "Zentral in Supabase gespeichert");
+    return true;
+  }
+
+  if (supabaseClient && !currentUser) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(recipes));
+    setStorageStatus("browser", "Nicht angemeldet · Änderung nur im Browser gesichert");
+    openAuth();
+    return false;
+  }
+
   try {
     const response = await fetch("/api/recipes", {
       method: "PUT",
@@ -116,6 +192,22 @@ function updateImagePreview() {
 
 async function uploadPendingImage() {
   if (!pendingImageFile) return formImage;
+  if (supabaseClient) {
+    if (!currentUser) throw new Error("Bitte zuerst anmelden, um Bilder hochzuladen.");
+    const extensionMap = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
+    const extension = extensionMap[pendingImageFile.type];
+    const uniqueId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+    const filename = `${currentUser.id}/recipe-${uniqueId}.${extension}`;
+    const { error } = await supabaseClient.storage
+      .from("recipe-images")
+      .upload(filename, pendingImageFile, { contentType: pendingImageFile.type, upsert: false });
+    if (error) throw new Error(`Bild konnte nicht hochgeladen werden: ${error.message}`);
+    const { data } = supabaseClient.storage.from("recipe-images").getPublicUrl(filename);
+    formImage = data.publicUrl;
+    pendingImageFile = null;
+    clearPreviewObjectUrl();
+    return formImage;
+  }
   const response = await fetch("/api/image", {
     method: "POST",
     headers: { "Content-Type": pendingImageFile.type || "application/octet-stream" },
@@ -570,6 +662,7 @@ function render() {
 }
 
 function openForm(recipe = null) {
+  if (!ensureCanEdit()) return;
   recipeForm.reset();
   formProducts = typeof structuredClone === "function" ? structuredClone(recipe?.products || []) : JSON.parse(JSON.stringify(recipe?.products || []));
   formComponents = typeof structuredClone === "function" ? structuredClone(recipe?.components || []) : JSON.parse(JSON.stringify(recipe?.components || []));
@@ -651,6 +744,10 @@ function openDetail(id) {
   detail.querySelector('[data-action="edit"]').addEventListener("click", () => { detailModal.close(); openForm(recipe); });
   detail.querySelector('[data-action="delete"]').addEventListener("click", () => deleteRecipe(recipe));
   detail.querySelectorAll(".shopping-check").forEach(checkbox => checkbox.addEventListener("change", async event => {
+    if (!ensureCanEdit()) {
+      event.target.checked = !event.target.checked;
+      return;
+    }
     const ingredient = recipe.ingredients[Number(event.target.dataset.index)];
     ingredient.checked = event.target.checked;
     event.target.closest(".shopping-item").classList.toggle("checked", event.target.checked);
@@ -660,11 +757,18 @@ function openDetail(id) {
 }
 
 async function deleteRecipe(recipe) {
+  if (!ensureCanEdit()) return;
   if (!confirm(`„${recipe.title}“ wirklich löschen?`)) return;
+  const previousRecipes = recipes;
   recipes = recipes.filter(item => item.id !== recipe.id);
-  await saveRecipes();
-  detailModal.close();
-  render();
+  try {
+    await saveRecipes();
+    detailModal.close();
+    render();
+  } catch (error) {
+    recipes = previousRecipes;
+    alert(error.message);
+  }
 }
 
 recipeForm.addEventListener("submit", async event => {
@@ -699,15 +803,54 @@ recipeForm.addEventListener("submit", async event => {
     nutrition: getNutritionValues(),
     nutritionCalculation: formCalculation
   };
+  const previousRecipes = recipes;
   if (id) recipes = recipes.map(item => item.id === id ? recipe : item);
-  else recipes.unshift(recipe);
-  await saveRecipes();
-  closeForm();
-  render();
+  else recipes = [recipe, ...recipes];
+  try {
+    await saveRecipes();
+    closeForm();
+    render();
+  } catch (error) {
+    recipes = previousRecipes;
+    alert(error.message);
+  }
 });
 
 document.querySelectorAll("#newRecipeButton, #heroNewRecipeButton, #emptyNewRecipeButton").forEach(button => button.addEventListener("click", () => openForm()));
 document.querySelectorAll("#closeModalButton, #cancelButton").forEach(button => button.addEventListener("click", closeForm));
+document.querySelector("#closeAuthButton").addEventListener("click", closeAuth);
+document.querySelector("#authButton").addEventListener("click", async () => {
+  if (!currentUser) {
+    openAuth();
+    return;
+  }
+  await supabaseClient.auth.signOut();
+  currentUser = null;
+  updateAuthInterface();
+  setStorageStatus("cloud", "Zentrale Sammlung · zum Bearbeiten anmelden");
+});
+document.querySelector("#authForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const errorField = document.querySelector("#authError");
+  const submitButton = event.currentTarget.querySelector('[type="submit"]');
+  errorField.textContent = "";
+  submitButton.disabled = true;
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
+    email: document.querySelector("#authEmail").value.trim(),
+    password: document.querySelector("#authPassword").value
+  });
+  submitButton.disabled = false;
+  if (error) {
+    errorField.textContent = "Anmeldung fehlgeschlagen. Bitte E-Mail-Adresse und Passwort prüfen.";
+    return;
+  }
+  currentUser = data.user;
+  updateAuthInterface();
+  closeAuth();
+  await loadRecipes();
+  normalizeAllRecipes();
+  render();
+});
 document.querySelector("#lookupBarcodeButton").addEventListener("click", lookupBarcode);
 document.querySelector("#barcodeInput").addEventListener("keydown", event => {
   if (event.key === "Enter") { event.preventDefault(); lookupBarcode(); }
@@ -745,14 +888,20 @@ document.querySelectorAll(".category-tab").forEach(tab => tab.addEventListener("
   document.querySelectorAll(".category-tab").forEach(item => item.classList.toggle("active", item === tab));
   render();
 }));
-[recipeModal, detailModal].forEach(modal => modal.addEventListener("click", event => {
+[recipeModal, detailModal, document.querySelector("#authModal")].forEach(modal => modal.addEventListener("click", event => {
   if (event.target === modal) {
     if (modal === recipeModal) closeForm();
+    else if (modal.id === "authModal") closeAuth();
     else modal.close();
   }
 }));
 
 async function initialize() {
+  if (supabaseClient) {
+    const { data } = await supabaseClient.auth.getSession();
+    currentUser = data.session?.user || null;
+  }
+  updateAuthInterface();
   await loadRecipes();
   normalizeAllRecipes();
   render();
