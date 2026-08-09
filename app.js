@@ -764,7 +764,6 @@ function render() {
     } else image.remove();
     fragment.querySelector(".category-badge").textContent = recipe.category;
     fragment.querySelector("h3").textContent = recipe.title;
-    fragment.querySelector(".ingredient-preview").textContent = (recipe.ingredients || []).slice(0, 3).map(ingredientLabel).join(" · ");
     fragment.querySelector(".card-open").addEventListener("click", () => openDetail(recipe.id));
     card.dataset.id = recipe.id;
     recipeGrid.append(fragment);
