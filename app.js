@@ -11,6 +11,7 @@ let cloudWriteInProgress = 0;
 let cloudRefreshStarted = false;
 let activeCategory = "Alle";
 let searchTerm = "";
+let sortMode = "title_asc";
 let formProducts = [];
 let formIngredients = [];
 let formCalculation = null;
@@ -750,6 +751,17 @@ function render() {
     const searchable = `${recipe.title} ${(recipe.ingredients || []).map(item => normalizeIngredient(item).name).join(" ")}`.toLowerCase();
     return categoryMatches && searchable.includes(searchTerm.toLowerCase());
   });
+  const compareTitles = (left, right) => left.title.localeCompare(right.title, "de", { sensitivity: "base" });
+  filtered.sort((left, right) => {
+    if (sortMode === "title_desc") return compareTitles(right, left);
+    if (sortMode === "category") {
+      return left.category.localeCompare(right.category, "de", { sensitivity: "base" }) || compareTitles(left, right);
+    }
+    if (sortMode === "updated_desc") {
+      return new Date(recipeVersions.get(right.id) || 0).getTime() - new Date(recipeVersions.get(left.id) || 0).getTime() || compareTitles(left, right);
+    }
+    return compareTitles(left, right);
+  });
 
   recipeGrid.replaceChildren();
   filtered.forEach(recipe => {
@@ -1053,6 +1065,7 @@ document.querySelector("#removeImageButton").addEventListener("click", () => {
   updateImagePreview();
 });
 document.querySelector("#searchInput").addEventListener("input", event => { searchTerm = event.target.value.trim(); render(); });
+document.querySelector("#sortSelect").addEventListener("change", event => { sortMode = event.target.value; render(); });
 document.querySelectorAll(".category-tab").forEach(tab => tab.addEventListener("click", () => {
   activeCategory = tab.dataset.category;
   document.querySelectorAll(".category-tab").forEach(item => item.classList.toggle("active", item === tab));

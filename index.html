@@ -47,11 +47,22 @@
               <p class="eyebrow">Meine Sammlung</p>
               <h2>Alle Rezepte</h2>
             </div>
-            <label class="search-field">
-              <span class="sr-only">Rezepte durchsuchen</span>
-              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.35-4.35m2.35-5.15a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
-              <input id="searchInput" type="search" placeholder="Rezepte durchsuchen …" />
-            </label>
+            <div class="collection-controls">
+              <label class="sort-field">
+                <span class="sr-only">Rezepte sortieren</span>
+                <select id="sortSelect">
+                  <option value="title_asc">Alphabetisch A–Z</option>
+                  <option value="title_desc">Alphabetisch Z–A</option>
+                  <option value="category">Nach Kategorie</option>
+                  <option value="updated_desc">Zuletzt geändert</option>
+                </select>
+              </label>
+              <label class="search-field">
+                <span class="sr-only">Rezepte durchsuchen</span>
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.35-4.35m2.35-5.15a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
+                <input id="searchInput" type="search" placeholder="Rezepte durchsuchen …" />
+              </label>
+            </div>
           </div>
 
           <div class="category-tabs" role="tablist" aria-label="Rezeptkategorien">
@@ -227,6 +238,6 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=20260809-6"></script>
+    <script src="app.js?v=20260809-7"></script>
   </body>
 </html>
