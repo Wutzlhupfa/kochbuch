@@ -87,6 +87,13 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(58px, 8vw, 104px); letter-spa
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #5f845f; box-shadow: 0 0 0 3px rgba(95,132,95,.14); }
 .storage-status.browser-storage { color: #8a6045; border-color: #dcc8b7; background: #f6ece3; }
 .storage-status.browser-storage .status-dot { background: #bd6b4f; box-shadow: 0 0 0 3px rgba(189,107,79,.14); }
+.backup-panel { display: flex; align-items: center; justify-content: space-between; gap: 28px; margin: 0 0 46px; padding: 24px 26px; border: 1px solid #cad6c6; border-radius: 5px; background: #edf2e9; }
+.backup-panel h3 { margin: 2px 0 6px; font-size: 26px; }
+.backup-panel p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.backup-panel .backup-kicker { color: var(--sage-dark); font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+.backup-actions { display: flex; flex: 0 0 auto; gap: 9px; }
+.backup-actions button { white-space: nowrap; }
+.backup-actions button:disabled { cursor: wait; opacity: .62; transform: none; box-shadow: none; }
 .section-heading { display: flex; justify-content: space-between; align-items: end; gap: 32px; }
 h2 { margin: 0; font-size: clamp(42px, 5vw, 62px); letter-spacing: -.025em; }
 .collection-controls { display: flex; align-items: center; gap: 10px; }
@@ -245,6 +252,9 @@ footer { display: flex; justify-content: space-between; align-items: center; pad
 @media (max-width: 820px) {
   .recipe-grid { grid-template-columns: repeat(2, 1fr); }
   .hero { padding-top: 90px; }
+  .backup-panel { align-items: flex-start; flex-direction: column; }
+  .backup-actions { width: 100%; }
+  .backup-actions button { flex: 1; }
   .section-heading { align-items: start; flex-direction: column; }
   .collection-controls { width: 100%; align-items: stretch; flex-direction: column; }
   .sort-field select { width: 100%; }
@@ -262,6 +272,9 @@ footer { display: flex; justify-content: space-between; align-items: center; pad
   .hero-copy { font-size: 17px; }
   .hero-actions { align-items: flex-start; flex-direction: column; gap: 20px; }
   .collection { padding: 64px 0 76px; }
+  .backup-panel { padding: 21px; }
+  .backup-actions { flex-direction: column; }
+  .backup-actions button { width: 100%; }
   .recipe-grid { grid-template-columns: 1fr; }
   footer { align-items: flex-start; flex-direction: column; gap: 18px; }
   .recipe-form, .detail-content { padding: 26px 22px; }

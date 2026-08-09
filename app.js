@@ -459,6 +459,114 @@ function ingredientLabel(ingredient, factor = 1) {
   return `${amount}${item.name}`.trim();
 }
 
+function sortedRecipesForExport() {
+  return [...recipes].sort((left, right) => left.title.localeCompare(right.title, "de", { sensitivity: "base" }));
+}
+
+async function loadLatestRecipesForExport() {
+  if (supabaseClient) {
+    const refreshed = await refreshRecipesFromCloud({ updateStatus: false });
+    if (!refreshed) throw new Error("Die neuesten Cloud-Daten konnten nicht geladen werden. Bitte prüfe deine Internetverbindung und versuche es erneut.");
+  }
+  if (!recipes.length) throw new Error("Es sind noch keine Rezepte zum Exportieren vorhanden.");
+}
+
+function downloadJsonBackup() {
+  const exportedAt = new Date();
+  const backup = {
+    format: "kuechenbuch-backup",
+    version: 1,
+    exportedAt: exportedAt.toISOString(),
+    recipeCount: recipes.length,
+    recipes: sortedRecipesForExport()
+  };
+  const date = exportedAt.toISOString().slice(0, 10);
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `kuechenbuch-sicherung-${date}.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function recipeBookHtml(items) {
+  const generatedAt = new Intl.DateTimeFormat("de-DE", { dateStyle: "long", timeStyle: "short" }).format(new Date());
+  const contents = items.map((recipe, index) => `<li><span>${index + 1}. ${escapeHtml(recipe.title)}</span><span>${escapeHtml(recipe.category || "Ohne Kategorie")}</span></li>`).join("");
+  const recipesHtml = items.map((recipe, index) => {
+    const components = recipe.components?.length
+      ? recipe.components
+      : [normalizeComponent({ name: "Allgemein", instructions: recipe.instructions || "" })];
+    const imageUrl = validUrl(recipe.image);
+    const parts = components.map(component => {
+      const ingredients = (recipe.ingredients || [])
+        .map(normalizeIngredient)
+        .filter(ingredient => ingredient.componentId === component.id);
+      const ingredientRows = ingredients.length
+        ? ingredients.map(ingredient => `<li>${escapeHtml(ingredientLabel(ingredient))}</li>`).join("")
+        : "<li class=\"muted\">Keine Zutaten eingetragen</li>";
+      return `<section class="part">
+        <h3>${escapeHtml(component.name || "Allgemein")}</h3>
+        <div class="part-columns">
+          <div><h4>Zutaten</h4><ul class="ingredients">${ingredientRows}</ul></div>
+          <div><h4>Zubereitung</h4><p class="instructions">${escapeHtml(component.instructions || "Keine Zubereitung eingetragen")}</p></div>
+        </div>
+      </section>`;
+    }).join("");
+    const nutrition = recipe.nutrition || {};
+    const nutritionRows = Object.entries(nutritionLabels)
+      .filter(([key]) => nutrition[key] !== null && nutrition[key] !== "" && nutrition[key] !== undefined)
+      .map(([key, [label, unit]]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(String(nutrition[key]))} ${escapeHtml(unit)}</td></tr>`)
+      .join("");
+    const links = (recipe.links || []).map(validUrl).filter(Boolean);
+    return `<article class="recipe">
+      <div class="recipe-number">Rezept ${index + 1} von ${items.length}</div>
+      ${imageUrl ? `<img class="recipe-image" src="${escapeHtml(imageUrl)}" alt="">` : ""}
+      <p class="category">${escapeHtml(recipe.category || "Ohne Kategorie")}</p>
+      <h2>${escapeHtml(recipe.title)}</h2>
+      ${Number(recipe.servings) > 0 ? `<p class="servings">Grundrezept für ${escapeHtml(formatIngredientAmount(Number(recipe.servings)))} Portionen</p>` : ""}
+      ${parts}
+      ${nutritionRows ? `<section class="extra"><h3>Nährwertangaben</h3><p class="caption">Durchschnittliche Werte pro 100 g</p><table><tbody>${nutritionRows}</tbody></table></section>` : ""}
+      ${links.length ? `<section class="extra"><h3>Links</h3><ul class="links">${links.map(url => `<li>${escapeHtml(url)}</li>`).join("")}</ul></section>` : ""}
+    </article>`;
+  }).join("");
+
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Küchenbuch</title><style>
+    :root{color:#243229;background:#fffdf8;font-family:Arial,sans-serif}*{box-sizing:border-box}body{margin:0;background:#ece9e0}.toolbar{position:sticky;z-index:10;top:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 20px;color:white;background:#243229}.toolbar p{margin:0;font-size:13px}.toolbar button{padding:10px 17px;border:0;border-radius:999px;color:#243229;background:#fffdf8;cursor:pointer;font-weight:700}.book{width:210mm;margin:18px auto;background:#fffdf8;box-shadow:0 8px 30px #0002}.cover,.contents,.recipe{padding:18mm 16mm}.cover{display:flex;min-height:270mm;flex-direction:column;justify-content:center;text-align:center}.mark{display:grid;width:25mm;height:25mm;margin:0 auto 15mm;place-items:center;border:1px solid #243229;border-radius:50%;font:42px Georgia,serif}.eyebrow,.category,.recipe-number{font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#526b54}.cover h1{margin:0;font:70px/1 Georgia,serif}.cover .subtitle{margin:8mm auto 0;max-width:120mm;color:#667068;font-size:17px}.cover .date{margin-top:25mm;color:#667068;font-size:12px}.contents{min-height:270mm}.contents h2,.recipe h2{margin:0 0 10mm;font:44px/1.05 Georgia,serif}.contents ol{margin:0;padding:0;list-style:none}.contents li{display:flex;justify-content:space-between;gap:15mm;padding:3mm 0;border-bottom:1px solid #dedbd2;font-size:13px}.contents li span:last-child{color:#667068}.recipe{position:relative;min-height:270mm;break-before:page}.recipe-number{position:absolute;right:16mm;top:18mm;color:#778078}.recipe-image{display:block;width:100%;height:65mm;margin-bottom:9mm;object-fit:cover}.category{margin:0 0 3mm}.recipe h2{margin-bottom:3mm}.servings{margin:0 0 10mm;color:#667068;font-size:12px}.part{margin-top:9mm;padding-top:7mm;border-top:1px solid #d8d5cc}.part h3,.extra h3{margin:0 0 5mm;font:26px Georgia,serif;color:#526b54}.part-columns{display:grid;grid-template-columns:42% 1fr;gap:12mm}.part h4{margin:0 0 3mm;font-size:11px;letter-spacing:.1em;text-transform:uppercase}.ingredients{margin:0;padding:0;list-style:none}.ingredients li{padding:2.2mm 0;border-bottom:1px solid #ebe8df;font-size:12px}.instructions{margin:0;white-space:pre-wrap;font-size:12px;line-height:1.6}.muted,.caption{color:#777f78}.extra{margin-top:9mm;padding-top:7mm;border-top:1px solid #d8d5cc;break-inside:avoid}.caption{margin:-3mm 0 3mm;font-size:10px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{padding:2mm 0;border-bottom:1px solid #ebe8df;text-align:left}td{text-align:right}.links{margin:0;padding-left:5mm;font-size:10px;line-height:1.5;overflow-wrap:anywhere}@page{size:A4;margin:0}@media print{body{background:white}.toolbar{display:none}.book{width:auto;margin:0;box-shadow:none}.cover,.contents,.recipe{min-height:297mm}.part,.part-columns,.ingredients li{break-inside:avoid}}
+  </style></head><body><div class="toolbar"><p>Wähle im Druckdialog „Als PDF sichern“.</p><button type="button" onclick="window.print()">Drucken / als PDF sichern</button></div><main class="book"><section class="cover"><div class="mark">K</div><p class="eyebrow">Meine Rezeptsammlung</p><h1>Küchenbuch</h1><p class="subtitle">${items.length} ${items.length === 1 ? "Rezept" : "Rezepte"} - zum Nachkochen, Teilen und Aufbewahren.</p><p class="date">Erstellt am ${escapeHtml(generatedAt)}</p></section><section class="contents"><p class="eyebrow">Inhalt</p><h2>Alle Rezepte</h2><ol>${contents}</ol></section>${recipesHtml}</main></body></html>`;
+}
+
+async function openRecipeBookForPdf() {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) throw new Error("Das PDF-Fenster wurde blockiert. Bitte erlaube Pop-ups für diese Website und versuche es erneut.");
+  printWindow.document.write("<!doctype html><title>Rezeptbuch wird vorbereitet …</title><p style='font-family:Arial;padding:30px'>Die neuesten Rezepte werden geladen …</p>");
+  try {
+    await loadLatestRecipesForExport();
+    printWindow.document.open();
+    printWindow.document.write(recipeBookHtml(sortedRecipesForExport()));
+    printWindow.document.close();
+  } catch (error) {
+    printWindow.close();
+    throw error;
+  }
+}
+
+async function runExport(button, loadingText, action) {
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = loadingText;
+  try {
+    await action();
+  } catch (error) {
+    alert(error.message || "Der Export konnte nicht erstellt werden.");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
 function addIngredient(initial = {}) {
   const ingredient = normalizeIngredient(initial);
   if (!ingredient.componentId) ingredient.componentId = formComponents[0]?.id || "";
@@ -1066,6 +1174,11 @@ document.querySelector("#removeImageButton").addEventListener("click", () => {
 });
 document.querySelector("#searchInput").addEventListener("input", event => { searchTerm = event.target.value.trim(); render(); });
 document.querySelector("#sortSelect").addEventListener("change", event => { sortMode = event.target.value; render(); });
+document.querySelector("#exportPdfButton").addEventListener("click", event => runExport(event.currentTarget, "Wird vorbereitet …", openRecipeBookForPdf));
+document.querySelector("#exportBackupButton").addEventListener("click", event => runExport(event.currentTarget, "Wird gesichert …", async () => {
+  await loadLatestRecipesForExport();
+  downloadJsonBackup();
+}));
 document.querySelectorAll(".category-tab").forEach(tab => tab.addEventListener("click", () => {
   activeCategory = tab.dataset.category;
   document.querySelectorAll(".category-tab").forEach(item => item.classList.toggle("active", item === tab));

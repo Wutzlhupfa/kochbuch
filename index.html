@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260809-8" />
   </head>
   <body>
     <div class="page-shell">
@@ -41,6 +41,17 @@
           <div class="storage-status" id="storageStatus" role="status">
             <span class="status-dot" aria-hidden="true"></span>
             <span id="storageStatusText">Speicher wird geprüft …</span>
+          </div>
+          <div class="backup-panel" aria-labelledby="backupHeading">
+            <div>
+              <p class="backup-kicker">Export &amp; Doppelsicherung</p>
+              <h3 id="backupHeading">Dein Rezeptbuch sicher aufbewahren</h3>
+              <p>PDF zum Lesen und Ausdrucken, JSON zur späteren Wiederherstellung aller Rezeptdaten.</p>
+            </div>
+            <div class="backup-actions">
+              <button class="primary-button" id="exportPdfButton" type="button">Rezeptbuch als PDF</button>
+              <button class="secondary-button" id="exportBackupButton" type="button">Datensicherung (JSON)</button>
+            </div>
           </div>
           <div class="section-heading">
             <div>
@@ -238,6 +249,6 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=20260809-7"></script>
+    <script src="app.js?v=20260809-8"></script>
   </body>
 </html>
