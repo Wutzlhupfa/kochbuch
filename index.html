@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Meine persönliche Rezeptsammlung" />
+    <title>Küchenbuch – Meine Rezepte</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="#" aria-label="Zur Startseite">
+          <span class="brand-mark" aria-hidden="true">K</span>
+          <span>Küchenbuch</span>
+        </a>
+        <button class="primary-button header-button" id="newRecipeButton" type="button">
+          <span aria-hidden="true">＋</span> Neues Rezept
+        </button>
+      </header>
+
+      <main>
+        <section class="hero">
+          <p class="eyebrow">Deine persönliche Sammlung</p>
+          <h1>Rezepte, die bleiben.</h1>
+          <p class="hero-copy">Bewahre deine Lieblingsgerichte an einem Ort auf – übersichtlich, persönlich und jederzeit griffbereit.</p>
+          <div class="hero-actions">
+            <button class="primary-button" id="heroNewRecipeButton" type="button">Rezept hinzufügen <span aria-hidden="true">→</span></button>
+            <a class="text-link" href="#collection">Sammlung ansehen <span aria-hidden="true">↓</span></a>
+          </div>
+        </section>
+
+        <section class="collection" id="collection">
+          <div class="storage-status" id="storageStatus" role="status">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="storageStatusText">Speicher wird geprüft …</span>
+          </div>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Meine Sammlung</p>
+              <h2>Alle Rezepte</h2>
+            </div>
+            <label class="search-field">
+              <span class="sr-only">Rezepte durchsuchen</span>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.35-4.35m2.35-5.15a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
+              <input id="searchInput" type="search" placeholder="Rezepte durchsuchen …" />
+            </label>
+          </div>
+
+          <div class="category-tabs" role="tablist" aria-label="Rezeptkategorien">
+            <button class="category-tab active" data-category="Alle" type="button">Alle <span id="countAll">0</span></button>
+            <button class="category-tab" data-category="Vorspeise" type="button">Vorspeisen <span id="countStarter">0</span></button>
+            <button class="category-tab" data-category="Hauptspeise" type="button">Hauptspeisen <span id="countMain">0</span></button>
+            <button class="category-tab" data-category="Nachspeise" type="button">Nachspeisen <span id="countDessert">0</span></button>
+          </div>
+
+          <div class="recipe-grid" id="recipeGrid"></div>
+
+          <div class="empty-state" id="emptyState" hidden>
+            <div class="empty-icon" aria-hidden="true">✦</div>
+            <h3>Noch keine Rezepte hier</h3>
+            <p>Füge dein erstes Rezept hinzu und beginne deine persönliche Sammlung.</p>
+            <button class="primary-button" id="emptyNewRecipeButton" type="button">Erstes Rezept hinzufügen</button>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <a class="brand footer-brand" href="#"><span class="brand-mark" aria-hidden="true">K</span><span>Küchenbuch</span></a>
+        <p>Mit Liebe gesammelt &amp; gekocht.</p>
+      </footer>
+    </div>
+
+    <dialog class="modal" id="recipeModal">
+      <form class="recipe-form" id="recipeForm">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Deine Sammlung</p>
+            <h2 id="formTitle">Neues Rezept</h2>
+          </div>
+          <button class="icon-button" id="closeModalButton" type="button" aria-label="Fenster schließen">×</button>
+        </div>
+        <input id="recipeId" type="hidden" />
+
+        <div class="form-grid">
+          <label class="full-width">Titel des Rezepts
+            <input id="titleInput" type="text" placeholder="z. B. Cremiges Pilzrisotto" required maxlength="100" />
+          </label>
+          <label>Kategorie
+            <select id="categoryInput" required>
+              <option value="Vorspeise">Vorspeise</option>
+              <option value="Hauptspeise">Hauptspeise</option>
+              <option value="Nachspeise">Nachspeise</option>
+            </select>
+          </label>
+          <label>Rezeptbild <span class="optional">optional · max. 8 MB</span>
+            <input id="imageFileInput" class="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+          </label>
+          <div class="image-preview-field" id="imagePreviewField" hidden>
+            <img id="imagePreview" alt="Vorschau des Rezeptbildes" />
+            <button id="removeImageButton" type="button" aria-label="Rezeptbild entfernen">×</button>
+          </div>
+          <section class="component-editor full-width" aria-labelledby="componentsHeading">
+            <div class="form-section-heading">
+              <div>
+                <h3 id="componentsHeading">Rezeptteile</h3>
+                <p>Lege getrennte Bereiche wie Teig, Sauce oder verschiedene Füllungen an.</p>
+              </div>
+              <button class="secondary-button compact-button" id="addComponentButton" type="button">＋ Rezeptteil</button>
+            </div>
+            <div class="component-list-editor" id="componentRows"></div>
+          </section>
+          <section class="ingredient-editor full-width" aria-labelledby="ingredientsHeading">
+            <div class="form-section-heading">
+              <div>
+                <h3 id="ingredientsHeading">Zutaten &amp; Einkaufsliste</h3>
+                <p>Die Zutaten werden passend zu Teig, Füllung oder anderen Rezeptteilen getrennt dargestellt.</p>
+              </div>
+            </div>
+            <div class="ingredient-list-editor" id="ingredientRows"></div>
+            <p class="ingredient-editor-note">Bei Stück, EL, TL und Prise bitte zusätzlich das verwendete Gewicht eintragen, damit die Berechnung stimmt.</p>
+          </section>
+          <section class="barcode-panel full-width" aria-labelledby="barcodeHeading">
+            <div class="form-section-heading">
+              <div>
+                <h3 id="barcodeHeading">Produkt per Barcode hinzufügen</h3>
+                <p>EAN eingeben oder mit der Kamera scannen. Produktangaben werden von Open Food Facts geladen.</p>
+              </div>
+            </div>
+            <div class="barcode-controls">
+              <label class="barcode-label">EAN / Barcode
+                <input id="barcodeInput" type="text" inputmode="numeric" autocomplete="off" placeholder="z. B. 3017620422003" pattern="[0-9]{8,14}" />
+              </label>
+              <button class="secondary-button compact-button" id="lookupBarcodeButton" type="button">Produkt suchen</button>
+              <button class="secondary-button compact-button" id="scanBarcodeButton" type="button">▣ Kamera öffnen</button>
+            </div>
+            <p class="barcode-status" id="barcodeStatus" aria-live="polite"></p>
+            <div class="scanner-view" id="scannerView" hidden>
+              <video id="scannerVideo" playsinline muted></video>
+              <div class="scan-guide" aria-hidden="true"></div>
+              <button class="scanner-stop" id="stopScannerButton" type="button">Kamera schließen</button>
+            </div>
+            <div class="scanned-products" id="scannedProducts"></div>
+          </section>
+          <section class="nutrition-panel full-width" aria-labelledby="nutritionHeading">
+            <div class="form-section-heading">
+              <div>
+                <h3 id="nutritionHeading">Nährwertangaben</h3>
+                <p>Aus den einzelnen Zutaten berechnet – pro 100 g des fertigen Gerichts</p>
+              </div>
+              <button class="primary-button compact-button calculate-button" id="calculateNutritionButton" type="button">Nährwerte berechnen</button>
+            </div>
+            <div class="calculation-summary" id="calculationSummary">Noch nicht berechnet.</div>
+            <div class="nutrition-grid">
+              <label>Energie <span>kJ</span><input id="energyKjInput" type="number" min="0" step="0.1" placeholder="0" /></label>
+              <label>Energie <span>kcal</span><input id="energyKcalInput" type="number" min="0" step="0.1" placeholder="0" /></label>
+              <label>Fett <span>g</span><input id="fatInput" type="number" min="0" step="0.01" placeholder="0" /></label>
+              <label>davon gesättigte Fettsäuren <span>g</span><input id="saturatesInput" type="number" min="0" step="0.01" placeholder="0" /></label>
+              <label>Kohlenhydrate <span>g</span><input id="carbsInput" type="number" min="0" step="0.01" placeholder="0" /></label>
+              <label>davon Zucker <span>g</span><input id="sugarsInput" type="number" min="0" step="0.01" placeholder="0" /></label>
+              <label>Eiweiß <span>g</span><input id="proteinInput" type="number" min="0" step="0.01" placeholder="0" /></label>
+              <label>Salz <span>g</span><input id="saltInput" type="number" min="0" step="0.01" placeholder="0" /></label>
+              <label>Ballaststoffe <span>g</span><input id="fiberInput" type="number" min="0" step="0.01" placeholder="0" /></label>
+            </div>
+            <p class="nutrition-note">Die Werte sind Näherungen aus durchschnittlichen Produktdaten und können manuell korrigiert werden. Gewichtsverlust oder Wasseraufnahme beim Kochen werden nicht automatisch berücksichtigt.</p>
+          </section>
+          <label class="full-width">Links <span class="hint">Instagram, Blog oder andere Webseite – eine URL pro Zeile</span>
+            <textarea id="linksInput" rows="3" placeholder="https://instagram.com/…&#10;https://beispiel.de/rezept"></textarea>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button class="secondary-button" id="cancelButton" type="button">Abbrechen</button>
+          <button class="primary-button" type="submit">Rezept speichern</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal detail-modal" id="detailModal">
+      <article id="recipeDetail"></article>
+    </dialog>
+
+    <template id="recipeCardTemplate">
+      <article class="recipe-card">
+        <button class="card-open" type="button">
+          <div class="card-image">
+            <img alt="" />
+            <span class="category-badge"></span>
+          </div>
+          <div class="card-body">
+            <h3></h3>
+            <p class="ingredient-preview"></p>
+            <span class="view-recipe">Rezept ansehen <span aria-hidden="true">→</span></span>
+          </div>
+        </button>
+      </article>
+    </template>
+
+    <script src="app.js?v=20260804-4"></script>
+  </body>
+</html>

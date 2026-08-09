@@ -1,0 +1,831 @@
+[
+  {
+    "id": "5f58aad2-aad6-4f54-a83e-46cf6b934957",
+    "title": "Zitronentiramisu",
+    "category": "Nachspeise",
+    "image": "",
+    "ingredients": [
+      {
+        "id": "cae553b3-7a86-4421-aefd-3c2c2a4af7e5",
+        "name": "Savojardi (1 Packung groß)",
+        "amount": 300,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "faf84f44-b88e-4d06-b5d9-95137d6ff9c9"
+      },
+      {
+        "id": "83aca337-a734-4695-ba45-4891f8a7cc04",
+        "name": "Zitronenabrieb",
+        "amount": 1,
+        "unit": "Stück",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "faf84f44-b88e-4d06-b5d9-95137d6ff9c9"
+      },
+      {
+        "id": "f13175d2-7c79-41a7-9bac-368ce0214405",
+        "name": "Milch",
+        "amount": 300,
+        "unit": "ml",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "faf84f44-b88e-4d06-b5d9-95137d6ff9c9"
+      },
+      {
+        "id": "78035c89-88d5-4ca4-8baf-19bee9f6c6d6",
+        "name": "Lemon Curd",
+        "amount": 1.5,
+        "unit": "EL",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "a1856d49-6567-451d-a5c4-11d33cfd8b67"
+      },
+      {
+        "id": "393712df-60d0-46d8-81ab-c291588224a4",
+        "name": "Zitronenabrieb",
+        "amount": 1.5,
+        "unit": "Stück",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "a1856d49-6567-451d-a5c4-11d33cfd8b67"
+      },
+      {
+        "id": "243e2072-780d-4967-93dd-3916669c31c6",
+        "name": "Staubzucker",
+        "amount": 135,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "a1856d49-6567-451d-a5c4-11d33cfd8b67"
+      },
+      {
+        "id": "180ac892-9d2f-4802-88e3-7fbcf3648406",
+        "name": "Flüssige Schlagsahne",
+        "amount": 375,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "a1856d49-6567-451d-a5c4-11d33cfd8b67"
+      },
+      {
+        "id": "18bf15df-ef8c-4539-ac40-a4f3bc631ea3",
+        "name": "Mascarpone",
+        "amount": 37,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "a1856d49-6567-451d-a5c4-11d33cfd8b67"
+      },
+      {
+        "id": "54413e1d-83b7-49a9-a83f-3be9f6cc61fa",
+        "name": "Butter",
+        "amount": 75,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "e3d3d8e8-db0a-4f07-aef4-258e836d04d9"
+      },
+      {
+        "id": "203887b8-ee7e-4300-b6d0-0afd68a03316",
+        "name": "Eigelb",
+        "amount": 3,
+        "unit": "Stück",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "e3d3d8e8-db0a-4f07-aef4-258e836d04d9"
+      },
+      {
+        "id": "feb4696a-960b-4ad5-b179-9312262967ba",
+        "name": "Ei",
+        "amount": 3,
+        "unit": "Stück",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "e3d3d8e8-db0a-4f07-aef4-258e836d04d9"
+      },
+      {
+        "id": "e477f055-9454-480e-abea-f9305e090e4f",
+        "name": "Zucker",
+        "amount": 150,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "e3d3d8e8-db0a-4f07-aef4-258e836d04d9"
+      },
+      {
+        "id": "c28d5272-f77d-49a9-9365-596845403155",
+        "name": "Zitronenabrieb",
+        "amount": 1,
+        "unit": "Stück",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "e3d3d8e8-db0a-4f07-aef4-258e836d04d9"
+      },
+      {
+        "id": "2b7af069-9fe2-46d5-a8ae-22b99fa47fad",
+        "name": "Zitrone",
+        "amount": 90,
+        "unit": "ml",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "e3d3d8e8-db0a-4f07-aef4-258e836d04d9"
+      }
+    ],
+    "instructions": "Lemon Curd:\n1. Alles bis auf Butter in Topf und erhitzen und konstant umrühren bis Dickflüssig\n2. Sobald dickflüssig Butter in kleinen Stücken hinzugeben und weiterführen bis es zu einer Masse wird\n3. In Schüssel geben und Abkühlen\n\nCrema :\n1. Schlagsahne schlagen\n2. In einer anderen Schüssel Mascarpone, Staubzucker und Zitronenabrieb zusammenmischen\n3. Die geschlagene Sahne zum Maskarpone dazugeben und vermengen\n\nBagna:\n1. Milch lauwarm aufwärmen\n2. Von Platte nehmen\n3. Zitronenabrieb dazugeben\n4. 15 min Ziehen lassen\n\nFertigstellen:\n1. Zuerst eine dünne Schicht Maskarpone \n2. Savojardi in Bagna dunken \n3. Markarponeschicht + 1 EL Lemoncurd dünn drüber verstreichen\n4. Als oberste Schicht restlichen Lemon card verstreichen\n5. Min 1 nach Ziehen lassen\n6. Innerhalb von 3 Tagen essen",
+    "components": [
+      {
+        "id": "e3d3d8e8-db0a-4f07-aef4-258e836d04d9",
+        "name": "Lemon Curd",
+        "instructions": "1. Alles bis auf Butter in Topf und erhitzen und konstant umrühren bis Dickflüssig\n2. Sobald dickflüssig Butter in kleinen Stücken hinzugeben und weiterführen bis es zu einer Masse wird\n3. In Schüssel geben und Abkühlen"
+      },
+      {
+        "id": "a1856d49-6567-451d-a5c4-11d33cfd8b67",
+        "name": "Crema ",
+        "instructions": "1. Schlagsahne schlagen\n2. In einer anderen Schüssel Mascarpone, Staubzucker und Zitronenabrieb zusammenmischen\n3. Die geschlagene Sahne zum Maskarpone dazugeben und vermengen"
+      },
+      {
+        "id": "faf84f44-b88e-4d06-b5d9-95137d6ff9c9",
+        "name": "Bagna",
+        "instructions": "1. Milch lauwarm aufwärmen\n2. Von Platte nehmen\n3. Zitronenabrieb dazugeben\n4. 15 min Ziehen lassen"
+      },
+      {
+        "id": "9176e493-3b37-4580-b942-f02a574544a1",
+        "name": "Fertigstellen",
+        "instructions": "1. Zuerst eine dünne Schicht Maskarpone \n2. Savojardi in Bagna dunken \n3. Markarponeschicht + 1 EL Lemoncurd dünn drüber verstreichen\n4. Als oberste Schicht restlichen Lemon card verstreichen\n5. Min 1 nach Ziehen lassen\n6. Innerhalb von 3 Tagen essen"
+      }
+    ],
+    "links": [],
+    "products": [],
+    "nutrition": {
+      "energyKj": null,
+      "energyKcal": null,
+      "fat": null,
+      "saturates": null,
+      "carbs": null,
+      "sugars": null,
+      "protein": null,
+      "salt": null,
+      "fiber": null
+    },
+    "nutritionCalculation": null
+  },
+  {
+    "id": "422ce2c7-48c7-42d5-90cd-8aa66967e18c",
+    "title": "Schlutzkrapfen",
+    "category": "Hauptspeise",
+    "image": "",
+    "ingredients": [
+      {
+        "id": "e507a152-9a06-41f6-b1c1-f5174bae5a34",
+        "name": "Salz & Pfeffer",
+        "amount": 5,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "a739b3dd-c226-45bc-81de-fe32730394ac"
+      },
+      {
+        "id": "32b20ebd-85d2-49c0-ae96-b0b5e6751867",
+        "name": "Butter",
+        "amount": 30,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "a739b3dd-c226-45bc-81de-fe32730394ac"
+      },
+      {
+        "id": "405e75e1-bb12-4142-9441-7625528eeee3",
+        "name": "Ricotta",
+        "amount": 50,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "a739b3dd-c226-45bc-81de-fe32730394ac"
+      },
+      {
+        "id": "36aa0bbf-fa80-476b-b24f-c490dfea0bd6",
+        "name": "Kartoffel",
+        "amount": 150,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "a739b3dd-c226-45bc-81de-fe32730394ac"
+      },
+      {
+        "id": "f04a46e2-fdb0-42d4-8abe-3a299faf6e34",
+        "name": "Rote Beete",
+        "amount": 150,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "a739b3dd-c226-45bc-81de-fe32730394ac"
+      },
+      {
+        "id": "7c2c1eb8-de60-455b-bd9c-0696b21e3613",
+        "name": "Salz",
+        "amount": 5,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "8e7fb10b-80ff-4fb7-9fb0-45697f0e4034"
+      },
+      {
+        "id": "ad30b710-ab08-4d23-a4ff-e2cff2db20f1",
+        "name": "Sahne",
+        "amount": 250,
+        "unit": "ml",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "8e7fb10b-80ff-4fb7-9fb0-45697f0e4034"
+      },
+      {
+        "id": "6e3a0972-6a0e-45eb-aedc-2a5e4afbdef1",
+        "name": "Zwiebel",
+        "amount": 0.5,
+        "unit": "Stück",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "8e7fb10b-80ff-4fb7-9fb0-45697f0e4034"
+      },
+      {
+        "id": "ad93a601-1c1d-44b3-8237-9a016a29162d",
+        "name": "Kartoffel",
+        "amount": 500,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "8e7fb10b-80ff-4fb7-9fb0-45697f0e4034"
+      },
+      {
+        "id": "a7be53a2-68c8-430c-83be-3f02517b6872",
+        "name": "Wasser",
+        "amount": 15,
+        "unit": "ml",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "507ef4d2-5e2c-4f33-90ef-6ba63cb410fa"
+      },
+      {
+        "id": "08a37b22-ee39-41db-879f-c9eb26777f02",
+        "name": "Olivenöl",
+        "amount": 14.66,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "507ef4d2-5e2c-4f33-90ef-6ba63cb410fa"
+      },
+      {
+        "id": "888fe362-1eeb-4e57-ba63-08545ea68908",
+        "name": "Salz",
+        "amount": 5,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "507ef4d2-5e2c-4f33-90ef-6ba63cb410fa"
+      },
+      {
+        "id": "4b6cfc75-9dbd-43ea-ae9b-068b668467e5",
+        "name": "Weizenmehl",
+        "amount": 200,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "507ef4d2-5e2c-4f33-90ef-6ba63cb410fa"
+      },
+      {
+        "id": "a3213a4e-e073-4bf4-8751-dee4cd76a9cf",
+        "name": "Roggenmehl",
+        "amount": 200,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": {
+          "energyKj": 1377.19,
+          "energyKcal": 329.73,
+          "fat": 1.26,
+          "saturates": 0.22,
+          "carbs": 67.15,
+          "sugars": 1.77,
+          "protein": 7.91,
+          "salt": 0.01,
+          "fiber": 8.39
+        },
+        "nutritionSource": "Open Food Facts – Durchschnitt passender Produkte (11 Treffer)",
+        "nutritionMatches": [
+          "EDEKA HERZSTÜCKE MEHL Roggenmehl 1150 1kg 1.49€",
+          "Roggenmehl Type 997",
+          "Roggenmehl Type 997",
+          "Roggenmehl 1150"
+        ],
+        "productBarcode": "",
+        "componentId": "507ef4d2-5e2c-4f33-90ef-6ba63cb410fa"
+      }
+    ],
+    "instructions": "Teig:\nTeig:\n1. ﻿﻿﻿Aus Mehl, Salz, Öl und lauwarmem Wasser einen mittelfesten Teig mischen, gut kneten, Laibchen formen, nochmals Glattschleifen und zugedeckt rasten lassen.\n2﻿﻿. Die Laibchen werden zu dünnen Blättern ausgetrieben, Scheiben ausstechen, mit Fülle belegen, zur hälfte umschlagen und gut zudrücken. Diese Täschchen in reichlich siedendem Salzwasser, für 10min, leicht wallend kochen.\n4. ﻿﻿﻿Vorsichtig herausgehoben, gibt man die Krapfen in eine vorgewärmte Schüssel und übergießt sie mit brauner Butter.\n\nErdäpfelfüllung :\n﻿﻿1. Erdäpfel schälen und in grobe Stücke schneiden, dann für 20 Minuten im kochenden Wasser kochen lassen, bis sie weich sind.\n﻿﻿﻿2. Die gekochten Erdäpfel durch eine Presse drücken oder mit einer Gabel zerdrücken, bis keine Stücke mehr sind. Dann eine ¾ klein geschnittene frische Zwiebel und etwas Schnittlauch hineinmischen.\n﻿﻿﻿3. Etwas Salz und 250 ml Schlagobers dazugeben.\nDie Erdäpfel werden mit der gerösteten Zwiebel, etwas Salz, viel Schnittlauch und Sauerrahm zu einer Fülle vermengt.\n\nRote Beete füllung:\nZubereiten",
+    "components": [
+      {
+        "id": "507ef4d2-5e2c-4f33-90ef-6ba63cb410fa",
+        "name": "Teig",
+        "instructions": "Teig:\n1. ﻿﻿﻿Aus Mehl, Salz, Öl und lauwarmem Wasser einen mittelfesten Teig mischen, gut kneten, Laibchen formen, nochmals Glattschleifen und zugedeckt rasten lassen.\n2﻿﻿. Die Laibchen werden zu dünnen Blättern ausgetrieben, Scheiben ausstechen, mit Fülle belegen, zur hälfte umschlagen und gut zudrücken. Diese Täschchen in reichlich siedendem Salzwasser, für 10min, leicht wallend kochen.\n4. ﻿﻿﻿Vorsichtig herausgehoben, gibt man die Krapfen in eine vorgewärmte Schüssel und übergießt sie mit brauner Butter."
+      },
+      {
+        "id": "8e7fb10b-80ff-4fb7-9fb0-45697f0e4034",
+        "name": "Erdäpfelfüllung ",
+        "instructions": "﻿﻿1. Erdäpfel schälen und in grobe Stücke schneiden, dann für 20 Minuten im kochenden Wasser kochen lassen, bis sie weich sind.\n﻿﻿﻿2. Die gekochten Erdäpfel durch eine Presse drücken oder mit einer Gabel zerdrücken, bis keine Stücke mehr sind. Dann eine ¾ klein geschnittene frische Zwiebel und etwas Schnittlauch hineinmischen.\n﻿﻿﻿3. Etwas Salz und 250 ml Schlagobers dazugeben.\nDie Erdäpfel werden mit der gerösteten Zwiebel, etwas Salz, viel Schnittlauch und Sauerrahm zu einer Fülle vermengt."
+      },
+      {
+        "id": "a739b3dd-c226-45bc-81de-fe32730394ac",
+        "name": "Rote Beete füllung",
+        "instructions": "Zubereiten"
+      }
+    ],
+    "links": [],
+    "products": [],
+    "nutrition": {
+      "energyKj": null,
+      "energyKcal": null,
+      "fat": null,
+      "saturates": null,
+      "carbs": null,
+      "sugars": null,
+      "protein": null,
+      "salt": null,
+      "fiber": null
+    },
+    "nutritionCalculation": null
+  },
+  {
+    "id": "ab3159b5-c706-4f39-83cc-cf94bc5ce727",
+    "title": "Knödel",
+    "category": "Hauptspeise",
+    "image": "",
+    "ingredients": [
+      {
+        "id": "0311c67c-25dd-4d7e-8e1b-5a2538126d97",
+        "name": "Knödelbrot",
+        "amount": 350,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1fc207c1-eb1d-45d0-8dca-6a7503eba023"
+      },
+      {
+        "id": "b37013b1-a455-4172-ad87-5a6d6aa43d26",
+        "name": "Tilsiter",
+        "amount": 150,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1fc207c1-eb1d-45d0-8dca-6a7503eba023"
+      },
+      {
+        "id": "f478c483-dde5-4af3-a422-a04a19c7d68f",
+        "name": "getrocknete Zwiebel",
+        "amount": 2,
+        "unit": "EL",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1fc207c1-eb1d-45d0-8dca-6a7503eba023"
+      },
+      {
+        "id": "4fd644c3-8261-4dda-a625-7a1a41934601",
+        "name": "Ei",
+        "amount": 2,
+        "unit": "Stück",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1fc207c1-eb1d-45d0-8dca-6a7503eba023"
+      },
+      {
+        "id": "12147f85-1a20-4ce7-9fff-47908ada69a7",
+        "name": "Mehl 00",
+        "amount": 10,
+        "unit": "EL",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1fc207c1-eb1d-45d0-8dca-6a7503eba023"
+      },
+      {
+        "id": "76033ff8-2cd2-4557-a9da-72a1132449ac",
+        "name": "Petersilie",
+        "amount": 1.5,
+        "unit": "EL",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1fc207c1-eb1d-45d0-8dca-6a7503eba023"
+      },
+      {
+        "id": "c8f9df7e-2a84-4231-9865-d6a967cc7778",
+        "name": "Salz",
+        "amount": 1.5,
+        "unit": "TL",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1fc207c1-eb1d-45d0-8dca-6a7503eba023"
+      },
+      {
+        "id": "c6053a62-2fc2-4218-aa9d-f6b12246e751",
+        "name": "Milch",
+        "amount": 400,
+        "unit": "ml",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1fc207c1-eb1d-45d0-8dca-6a7503eba023"
+      }
+    ],
+    "instructions": "Portionen: ca. 20 Knödel\n\nZubereitung:\nKnödelbrot in Schüssel\nKäse dazugeben - rühren\nZwiebel rösten - rühren\nMehl & Salz - rühren\nPetersilie - rühren\nMilch & Eier (erst separat in einen Gefäß vermischen) Vermischt dazugeben - rühren\n\nKnödel formen, EL immer in Wasser tunken\nKochendes Wasser + Salz 15min Kochen",
+    "links": [],
+    "products": [],
+    "nutrition": {
+      "energyKj": null,
+      "energyKcal": null,
+      "fat": null,
+      "saturates": null,
+      "carbs": null,
+      "sugars": null,
+      "protein": null,
+      "salt": null,
+      "fiber": null
+    },
+    "nutritionCalculation": null,
+    "components": [
+      {
+        "id": "1fc207c1-eb1d-45d0-8dca-6a7503eba023",
+        "name": "Allgemein",
+        "instructions": "Portionen: ca. 20 Knödel\n\nZubereitung:\nKnödelbrot in Schüssel\nKäse dazugeben - rühren\nZwiebel rösten - rühren\nMehl & Salz - rühren\nPetersilie - rühren\nMilch & Eier (erst separat in einen Gefäß vermischen) Vermischt dazugeben - rühren\n\nKnödel formen, EL immer in Wasser tunken\nKochendes Wasser + Salz 15min Kochen"
+      }
+    ]
+  },
+  {
+    "id": "0883cdbf-88bc-41fc-956f-af2518af1d4d",
+    "title": "Marmorkuchen",
+    "category": "Nachspeise",
+    "image": "",
+    "ingredients": [
+      {
+        "id": "3bac7aff-5807-4ffd-803c-9b62b4740a7f",
+        "name": "Butter",
+        "amount": 200,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": {
+          "energyKj": 2366.1,
+          "energyKcal": 536.64,
+          "fat": 47.24,
+          "saturates": 20.63,
+          "carbs": 24.34,
+          "sugars": 13.5,
+          "protein": 10.69,
+          "salt": 0.39,
+          "fiber": 4.69
+        },
+        "nutritionSource": "Open Food Facts – Durchschnitt passender Produkte (11 Treffer)",
+        "nutritionMatches": [
+          "Fourrés Chocolat Noir",
+          "Brioche Tranchée Bio 400g",
+          "Be Nuts ! - Pâte à tartiner Cacahuète",
+          "Familia 200g"
+        ],
+        "productBarcode": "",
+        "componentId": "1926a1e4-434e-4195-bc44-dd134fc4d0d7"
+      },
+      {
+        "id": "807b289e-6841-41d9-b4cb-8c074681c61a",
+        "name": "Zucker",
+        "amount": 160,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": {
+          "energyKj": 120.75,
+          "energyKcal": 29,
+          "fat": 1.39,
+          "saturates": 0.24,
+          "carbs": 2.08,
+          "sugars": 0.91,
+          "protein": 1.38,
+          "salt": 0.13,
+          "fiber": 0.64
+        },
+        "nutritionSource": "Open Food Facts – Durchschnitt passender Produkte (12 Treffer)",
+        "nutritionMatches": [
+          "Geröstete Mandel Ohne Zucker",
+          "Natur mit Kokosnuss",
+          "Alpro Joghurtalternative auf Sojabasis, Natur mit Hafer, 500 g",
+          "Alpro Mandeldrink Weiß Ungesüßt, Ungeröstet 1 LT"
+        ],
+        "productBarcode": "",
+        "componentId": "1926a1e4-434e-4195-bc44-dd134fc4d0d7"
+      },
+      {
+        "id": "f950390c-cc7d-4252-9004-9ad524112563",
+        "name": "Vanillezucker",
+        "amount": 1,
+        "unit": "Stück",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": {
+          "energyKj": 1668.33,
+          "energyKcal": 393,
+          "fat": 0.14,
+          "saturates": 0.03,
+          "carbs": 97.36,
+          "sugars": 96.04,
+          "protein": 0.15,
+          "salt": 0,
+          "fiber": 1.13
+        },
+        "nutritionSource": "Open Food Facts – Durchschnitt passender Produkte (10 Treffer)",
+        "nutritionMatches": [
+          "Bourbon-Vanillezucker",
+          "Vanillezucker",
+          "Vanillezucker",
+          "Vanillinzucker (Vanillezucker)"
+        ],
+        "productBarcode": "",
+        "componentId": "1926a1e4-434e-4195-bc44-dd134fc4d0d7"
+      },
+      {
+        "id": "5eec4760-6563-4a76-8599-9dc9ec3c5333",
+        "name": "Zitronenschale Gerieben",
+        "amount": 1,
+        "unit": "Stück",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1926a1e4-434e-4195-bc44-dd134fc4d0d7"
+      },
+      {
+        "id": "194c3b04-a537-4da9-989a-81d69f72f4cc",
+        "name": "Eiweis",
+        "amount": 6,
+        "unit": "Stück",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1926a1e4-434e-4195-bc44-dd134fc4d0d7"
+      },
+      {
+        "id": "484aae71-fc52-4e3d-8af3-e38bf5c0f347",
+        "name": "Eigelb",
+        "amount": 6,
+        "unit": "Stück",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1926a1e4-434e-4195-bc44-dd134fc4d0d7"
+      },
+      {
+        "id": "0d37feca-db99-4fec-970d-4d8caa6a9a0d",
+        "name": "Salz",
+        "amount": 1,
+        "unit": "Prise",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1926a1e4-434e-4195-bc44-dd134fc4d0d7"
+      },
+      {
+        "id": "7d7aa16d-7b35-4913-8512-c58a20f50a9a",
+        "name": "Zucker",
+        "amount": 120,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1926a1e4-434e-4195-bc44-dd134fc4d0d7"
+      },
+      {
+        "id": "e09274c6-4548-4de6-922e-abe64cee2700",
+        "name": "Mehl",
+        "amount": 280,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1926a1e4-434e-4195-bc44-dd134fc4d0d7"
+      },
+      {
+        "id": "5a643950-e8c8-4dda-87c2-56c1d88153d9",
+        "name": "Backpulver",
+        "amount": 0.5,
+        "unit": "Stück",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1926a1e4-434e-4195-bc44-dd134fc4d0d7"
+      },
+      {
+        "id": "e78d8d8d-7918-466f-ab29-3f39a6e3c0b7",
+        "name": "Milch",
+        "amount": 100,
+        "unit": "ml",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1926a1e4-434e-4195-bc44-dd134fc4d0d7"
+      },
+      {
+        "id": "b69abc56-03a3-45bf-abe6-03580697d990",
+        "name": "Kakao",
+        "amount": 20,
+        "unit": "g",
+        "weightGrams": "",
+        "checked": false,
+        "nutritionPer100g": null,
+        "nutritionSource": "",
+        "nutritionMatches": [],
+        "productBarcode": "",
+        "componentId": "1926a1e4-434e-4195-bc44-dd134fc4d0d7"
+      }
+    ],
+    "instructions": "1. Die weiche Butter mit 160 g Zucker, dem Vanille-zucker, der Zitronenschale und dem Rum schaumig rühren.\n2. ﻿﻿Nach und nach das Eigelb zugeben und zu einer\n Schaummasse rühren.\n3. ﻿﻿Das Eiweiß mit dem Salz leicht schlagen und mit 120g Zucker zu Schnee schlagen.\n4. ﻿﻿Die Buttermasse mit dem gesiebten Mehl und dem Backpulver, die lauwarme Milch und den Eischnee abwechselnd mit einem Holzlöffel unterheben.\n5. ﻿﻿Die Napfkuchenform mit Butter ausstreichen und mit Mehl bestreuen.\n﻿﻿Gut die Hälfte des Teiges in die Form füllen.\n﻿﻿6. Den restlichen Teig mit dem Kakaopulver dunkel färben.\n﻿﻿7. Den dunklen Teig über die helle Teigmasse in die Form füllen und mit einer Gabel spiralförmig unterziehen, damit sich beide Teigsorten leicht vermischen.\n﻿﻿So entsteht das charakteristische Marmormuster.\n﻿﻿8. Im vorgeheizten Backrohr backen.\n9. ﻿﻿Den Kuchen in der Form kurz auskühlen lassen, auf ein Küchengitter stürzen und ganz auskühlen lassen.\n10. ﻿﻿Mit Staubzucker bestreuen.\n\nBacktemperatur: 160 Grad bei Umluft\nBackzeit: 60 Minuten",
+    "links": [],
+    "products": [],
+    "nutrition": {
+      "energyKj": null,
+      "energyKcal": null,
+      "fat": null,
+      "saturates": null,
+      "carbs": null,
+      "sugars": null,
+      "protein": null,
+      "salt": null,
+      "fiber": null
+    },
+    "nutritionCalculation": null,
+    "components": [
+      {
+        "id": "1926a1e4-434e-4195-bc44-dd134fc4d0d7",
+        "name": "Allgemein",
+        "instructions": "1. Die weiche Butter mit 160 g Zucker, dem Vanille-zucker, der Zitronenschale und dem Rum schaumig rühren.\n2. ﻿﻿Nach und nach das Eigelb zugeben und zu einer\n Schaummasse rühren.\n3. ﻿﻿Das Eiweiß mit dem Salz leicht schlagen und mit 120g Zucker zu Schnee schlagen.\n4. ﻿﻿Die Buttermasse mit dem gesiebten Mehl und dem Backpulver, die lauwarme Milch und den Eischnee abwechselnd mit einem Holzlöffel unterheben.\n5. ﻿﻿Die Napfkuchenform mit Butter ausstreichen und mit Mehl bestreuen.\n﻿﻿Gut die Hälfte des Teiges in die Form füllen.\n﻿﻿6. Den restlichen Teig mit dem Kakaopulver dunkel färben.\n﻿﻿7. Den dunklen Teig über die helle Teigmasse in die Form füllen und mit einer Gabel spiralförmig unterziehen, damit sich beide Teigsorten leicht vermischen.\n﻿﻿So entsteht das charakteristische Marmormuster.\n﻿﻿8. Im vorgeheizten Backrohr backen.\n9. ﻿﻿Den Kuchen in der Form kurz auskühlen lassen, auf ein Küchengitter stürzen und ganz auskühlen lassen.\n10. ﻿﻿Mit Staubzucker bestreuen.\n\nBacktemperatur: 160 Grad bei Umluft\nBackzeit: 60 Minuten"
+      }
+    ]
+  }
+]

@@ -1,0 +1,112 @@
+{
+  "mehl": {
+    "query": "Mehl",
+    "nutrition": {
+      "energyKj": 1316.39,
+      "energyKcal": 337.67,
+      "fat": 2.95,
+      "saturates": 0.39,
+      "carbs": 64.28,
+      "sugars": 0.96,
+      "protein": 10.36,
+      "salt": 0.1,
+      "fiber": 6.04
+    },
+    "sampleCount": 12,
+    "matches": [
+      "Mehl Weizenmehl Type 405",
+      "FARINE - MEHL - Farine universelle",
+      "Mehl Weizen Vollkorn",
+      "Mehl"
+    ],
+    "source": "Open Food Facts – Durchschnitt passender Produkte"
+  },
+  "butter": {
+    "query": "Butter",
+    "nutrition": {
+      "energyKj": 2366.1,
+      "energyKcal": 536.64,
+      "fat": 47.24,
+      "saturates": 20.63,
+      "carbs": 24.34,
+      "sugars": 13.5,
+      "protein": 10.69,
+      "salt": 0.39,
+      "fiber": 4.69
+    },
+    "sampleCount": 11,
+    "matches": [
+      "Fourrés Chocolat Noir",
+      "Brioche Tranchée Bio 400g",
+      "Be Nuts ! - Pâte à tartiner Cacahuète",
+      "Familia 200g"
+    ],
+    "source": "Open Food Facts – Durchschnitt passender Produkte"
+  },
+  "vanillezucker": {
+    "query": "Vanillezucker",
+    "nutrition": {
+      "energyKj": 1668.33,
+      "energyKcal": 393,
+      "fat": 0.14,
+      "saturates": 0.03,
+      "carbs": 97.36,
+      "sugars": 96.04,
+      "protein": 0.15,
+      "salt": 0.0,
+      "fiber": 1.13
+    },
+    "sampleCount": 10,
+    "matches": [
+      "Bourbon-Vanillezucker",
+      "Vanillezucker",
+      "Vanillezucker",
+      "Vanillinzucker (Vanillezucker)"
+    ],
+    "source": "Open Food Facts – Durchschnitt passender Produkte"
+  },
+  "zucker": {
+    "query": "Zucker",
+    "nutrition": {
+      "energyKj": 120.75,
+      "energyKcal": 29.0,
+      "fat": 1.39,
+      "saturates": 0.24,
+      "carbs": 2.08,
+      "sugars": 0.91,
+      "protein": 1.38,
+      "salt": 0.13,
+      "fiber": 0.64
+    },
+    "sampleCount": 12,
+    "matches": [
+      "Geröstete Mandel Ohne Zucker",
+      "Natur mit Kokosnuss",
+      "Alpro Joghurtalternative auf Sojabasis, Natur mit Hafer, 500 g",
+      "Alpro Mandeldrink Weiß Ungesüßt, Ungeröstet 1 LT"
+    ],
+    "source": "Open Food Facts – Durchschnitt passender Produkte"
+  },
+  "roggenmehl": {
+    "query": "Roggenmehl",
+    "nutrition": {
+      "energyKj": 1377.19,
+      "energyKcal": 329.73,
+      "fat": 1.26,
+      "saturates": 0.22,
+      "carbs": 67.15,
+      "sugars": 1.77,
+      "protein": 7.91,
+      "salt": 0.01,
+      "fiber": 8.39
+    },
+    "sampleCount": 11,
+    "matches": [
+      "EDEKA HERZSTÜCKE MEHL Roggenmehl 1150 1kg 1.49€",
+      "Roggenmehl Type 997",
+      "Roggenmehl Type 997",
+      "Roggenmehl 1150"
+    ],
+    "source": "Open Food Facts – Durchschnitt passender Produkte"
+  }
+}
