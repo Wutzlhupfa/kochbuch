@@ -238,7 +238,7 @@ const nutritionFields = {
 
 const nutritionLabels = {
   energyKj: ["Energie", "kJ"],
-  energyKcal: ["Energie", "kcal"],
+  energyKcal: ["Kalorien", "kcal"],
   fat: ["Fett", "g"],
   saturates: ["davon gesättigte Fettsäuren", "g"],
   carbs: ["Kohlenhydrate", "g"],
@@ -361,8 +361,8 @@ function renderComponentRows() {
     const row = document.createElement("article");
     row.className = "component-row";
     row.innerHTML = `
-      <label>Name des Rezeptteils<input class="component-name-input" type="text" value="${escapeHtml(component.name)}" placeholder="z. B. Teig" required></label>
-      <label>Anleitung<textarea class="component-instructions-input" rows="4" placeholder="Zubereitung für diesen Teil …" required>${escapeHtml(component.instructions)}</textarea></label>
+      <label>Name des Rezeptteils<input class="component-name-input" type="text" value="${escapeHtml(component.name)}" placeholder="z. B. Teig (optional)"></label>
+      <label>Anleitung<textarea class="component-instructions-input" rows="4" placeholder="Zubereitung für diesen Teil … (optional)">${escapeHtml(component.instructions)}</textarea></label>
       <button class="component-remove" type="button" aria-label="Rezeptteil entfernen" ${formComponents.length === 1 ? "disabled" : ""}>×</button>`;
     row.querySelector(".component-name-input").addEventListener("input", event => { component.name = event.target.value; });
     row.querySelector(".component-name-input").addEventListener("change", renderIngredientRows);
@@ -404,7 +404,7 @@ function renderIngredientRows() {
       <label class="ingredient-check-wrap"><span class="sr-only">Auf Einkaufsliste abhaken</span><input class="ingredient-check" type="checkbox" ${ingredient.checked ? "checked" : ""}></label>
       <label>Menge<input class="ingredient-amount-input" type="number" min="0" step="0.01" value="${escapeHtml(String(ingredient.amount ?? ""))}" placeholder="100"></label>
       <label>Einheit<select class="ingredient-unit-input">${unitOptions}</select></label>
-      <label class="ingredient-name-field">Zutat<input class="ingredient-name-input" type="text" value="${escapeHtml(ingredient.name)}" placeholder="z. B. Mehl" required></label>
+      <label class="ingredient-name-field">Zutat<input class="ingredient-name-input" type="text" value="${escapeHtml(ingredient.name)}" placeholder="z. B. Mehl (optional)"></label>
       <label class="ingredient-weight-field">Gewicht g<input class="ingredient-weight-input" type="number" min="0" step="0.1" value="${escapeHtml(String(ingredient.weightGrams ?? ""))}" placeholder="auto"></label>
       <button class="ingredient-row-remove" type="button" aria-label="Zutat entfernen">×</button>
       <label class="ingredient-component-field">Gehört zu<select class="ingredient-component-input">${componentOptions}</select></label>
@@ -773,16 +773,22 @@ async function deleteRecipe(recipe) {
 
 recipeForm.addEventListener("submit", async event => {
   event.preventDefault();
-  const ingredients = formIngredients.filter(item => item.name.trim());
-  if (!ingredients.length) {
-    alert("Bitte mindestens eine Zutat hinzufügen.");
-    return;
-  }
-  const components = formComponents.filter(component => component.name.trim());
-  if (!components.length || components.some(component => !component.instructions.trim())) {
-    alert("Bitte für jeden Rezeptteil einen Namen und eine Anleitung eingeben.");
-    return;
-  }
+  let components = formComponents
+    .filter(component => component.name.trim() || component.instructions.trim())
+    .map((component, index) => ({
+      ...component,
+      name: component.name.trim() || `Rezeptteil ${index + 1}`,
+      instructions: component.instructions.trim()
+    }));
+  if (!components.length) components = [normalizeComponent({ name: "Allgemein", instructions: "" })];
+  const ingredients = formIngredients
+    .filter(item => item.name.trim())
+    .map(item => ({
+      ...item,
+      componentId: components.some(component => component.id === item.componentId)
+        ? item.componentId
+        : components[0].id
+    }));
   try {
     await uploadPendingImage();
   } catch (error) {

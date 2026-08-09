@@ -125,7 +125,7 @@
               </div>
             </div>
             <div class="ingredient-list-editor" id="ingredientRows"></div>
-            <p class="ingredient-editor-note">Bei Stück, EL, TL und Prise bitte zusätzlich das verwendete Gewicht eintragen, damit die Berechnung stimmt.</p>
+            <p class="ingredient-editor-note">Alle Zutatenpositionen sind optional. Leere Positionen werden beim Speichern ausgelassen. Für eine Nährwertberechnung bei Stück, EL, TL und Prise bitte zusätzlich das verwendete Gewicht eintragen.</p>
           </section>
           <section class="barcode-panel full-width" aria-labelledby="barcodeHeading">
             <div class="form-section-heading">
@@ -160,7 +160,7 @@
             <div class="calculation-summary" id="calculationSummary">Noch nicht berechnet.</div>
             <div class="nutrition-grid">
               <label>Energie <span>kJ</span><input id="energyKjInput" type="number" min="0" step="0.1" placeholder="0" /></label>
-              <label>Energie <span>kcal</span><input id="energyKcalInput" type="number" min="0" step="0.1" placeholder="0" /></label>
+              <label>Kalorien <span>kcal</span><input id="energyKcalInput" type="number" min="0" step="0.1" placeholder="0" /></label>
               <label>Fett <span>g</span><input id="fatInput" type="number" min="0" step="0.01" placeholder="0" /></label>
               <label>davon gesättigte Fettsäuren <span>g</span><input id="saturatesInput" type="number" min="0" step="0.01" placeholder="0" /></label>
               <label>Kohlenhydrate <span>g</span><input id="carbsInput" type="number" min="0" step="0.01" placeholder="0" /></label>
@@ -225,6 +225,6 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=20260809-1"></script>
+    <script src="app.js?v=20260809-2"></script>
   </body>
 </html>
