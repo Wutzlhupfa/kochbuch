@@ -68,6 +68,20 @@ function ensureCanEdit() {
   return false;
 }
 
+async function requireAuthenticatedCloudUser() {
+  if (!supabaseClient) return null;
+  const { data, error } = await supabaseClient.auth.getUser();
+  if (error || !data.user) {
+    currentUser = null;
+    updateAuthInterface();
+    openAuth();
+    throw new Error("Deine Anmeldung ist nicht mehr gültig. Bitte erneut anmelden und das Rezept danach noch einmal speichern.");
+  }
+  currentUser = data.user;
+  updateAuthInterface();
+  return data.user;
+}
+
 async function loadPublishedRecipes() {
   const response = await fetch("data/recipes.json", { cache: "no-store" });
   if (!response.ok) throw new Error("Veröffentlichte Sammlung nicht gefunden");
@@ -121,12 +135,13 @@ function applyCloudRows(rows) {
 
 async function importRecipesToCloud(items) {
   if (supabaseClient && currentUser) {
+    const authenticatedUser = await requireAuthenticatedCloudUser();
     const timestamp = new Date().toISOString();
     const rows = items.map(recipe => ({
       id: recipe.id,
       data: recipe,
       updated_at: timestamp,
-      updated_by: currentUser.id
+      updated_by: authenticatedUser.id
     }));
     if (rows.length) {
       const { error } = await supabaseClient.from("recipes").upsert(rows, { onConflict: "id" });
@@ -142,6 +157,7 @@ async function importRecipesToCloud(items) {
 
 async function saveRecipeToCloud(recipe, { expectedVersion = null, isNew = false } = {}) {
   if (supabaseClient && currentUser) {
+    const authenticatedUser = await requireAuthenticatedCloudUser();
     cloudWriteInProgress += 1;
     try {
       const timestamp = new Date().toISOString();
@@ -149,7 +165,7 @@ async function saveRecipeToCloud(recipe, { expectedVersion = null, isNew = false
         id: recipe.id,
         data: recipe,
         updated_at: timestamp,
-        updated_by: currentUser.id
+        updated_by: authenticatedUser.id
       };
       let result;
       if (isNew) {
@@ -165,7 +181,7 @@ async function saveRecipeToCloud(recipe, { expectedVersion = null, isNew = false
       }
       recipeVersions.set(recipe.id, result.data[0].updated_at);
       localStorage.removeItem(STORAGE_KEY);
-      setStorageStatus("cloud", "Zentral in Supabase gespeichert");
+      setStorageStatus("cloud", "Speichern in Supabase bestätigt");
       return true;
     } finally {
       cloudWriteInProgress -= 1;
@@ -173,10 +189,8 @@ async function saveRecipeToCloud(recipe, { expectedVersion = null, isNew = false
   }
 
   if (supabaseClient && !currentUser) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(recipes));
-    setStorageStatus("browser", "Nicht angemeldet · Änderung nur im Browser gesichert");
     openAuth();
-    return false;
+    throw new Error("Bitte zuerst anmelden. Das Rezept wurde noch nicht gespeichert.");
   }
 
   return saveRecipesToLocalServer();
@@ -184,6 +198,7 @@ async function saveRecipeToCloud(recipe, { expectedVersion = null, isNew = false
 
 async function deleteRecipeFromCloud(recipe) {
   if (supabaseClient && currentUser) {
+    await requireAuthenticatedCloudUser();
     cloudWriteInProgress += 1;
     try {
       let query = supabaseClient.from("recipes").delete().eq("id", recipe.id);
@@ -889,6 +904,11 @@ async function deleteRecipe(recipe, expectedVersion = null) {
 
 recipeForm.addEventListener("submit", async event => {
   event.preventDefault();
+  if (!ensureCanEdit()) return;
+  const submitButton = event.currentTarget.querySelector('[type="submit"]');
+  const originalButtonText = submitButton.textContent;
+  submitButton.disabled = true;
+  submitButton.textContent = "Wird gespeichert …";
   let components = formComponents
     .filter(component => component.name.trim() || component.instructions.trim())
     .map((component, index) => ({
@@ -909,6 +929,8 @@ recipeForm.addEventListener("submit", async event => {
     await uploadPendingImage();
   } catch (error) {
     alert(error.message);
+    submitButton.disabled = false;
+    submitButton.textContent = originalButtonText;
     return;
   }
   const id = document.querySelector("#recipeId").value;
@@ -925,20 +947,21 @@ recipeForm.addEventListener("submit", async event => {
     nutrition: getNutritionValues(),
     nutritionCalculation: formCalculation
   };
-  const previousRecipes = recipes;
-  if (id) recipes = recipes.map(item => item.id === id ? recipe : item);
-  else recipes = [recipe, ...recipes];
   try {
     await saveRecipeToCloud(recipe, { expectedVersion: editingRecipeVersion, isNew: !id });
+    if (id) recipes = recipes.map(item => item.id === id ? recipe : item);
+    else recipes = [recipe, ...recipes];
     closeForm();
     render();
   } catch (error) {
-    recipes = previousRecipes;
     alert(error.message);
     if (error.message.includes("inzwischen")) {
       closeForm();
       await refreshRecipesFromCloud();
     }
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = originalButtonText;
   }
 });
 
@@ -1026,6 +1049,10 @@ async function initialize() {
   if (supabaseClient) {
     const { data } = await supabaseClient.auth.getSession();
     currentUser = data.session?.user || null;
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      currentUser = session?.user || null;
+      updateAuthInterface();
+    });
   }
   updateAuthInterface();
   await loadRecipes();
