@@ -378,6 +378,32 @@ function hasNutritionValues(nutrition = {}) {
   return Object.values(nutrition).some(value => value !== null && value !== "" && value !== undefined);
 }
 
+function normalizeNutritionBasis(value = {}) {
+  const unit = value.unit === "servings" ? "servings" : "grams";
+  const amount = Number(value.amount);
+  return { unit, amount: amount > 0 ? amount : (unit === "servings" ? 1 : 100) };
+}
+
+function nutritionBasisLabel(value = {}) {
+  const basis = normalizeNutritionBasis(value);
+  const amount = formatIngredientAmount(basis.amount);
+  if (basis.unit === "servings") return `${amount} ${basis.amount === 1 ? "Portion" : "Portionen"}`;
+  return `${amount} g`;
+}
+
+function getNutritionBasisFromForm() {
+  return normalizeNutritionBasis({
+    unit: document.querySelector("#nutritionBasisUnitInput").value,
+    amount: document.querySelector("#nutritionBasisAmountInput").value
+  });
+}
+
+function setNutritionBasisForm(value = {}) {
+  const basis = normalizeNutritionBasis(value);
+  document.querySelector("#nutritionBasisUnitInput").value = basis.unit;
+  document.querySelector("#nutritionBasisAmountInput").value = basis.amount;
+}
+
 const ingredientUnits = ["g", "kg", "ml", "l", "Stück", "EL", "TL", "Prise"];
 
 function newIngredientId() {
@@ -516,6 +542,7 @@ function recipeBookHtml(items) {
       </section>`;
     }).join("");
     const nutrition = recipe.nutrition || {};
+    const nutritionBasis = nutritionBasisLabel(recipe.nutritionBasis);
     const nutritionRows = Object.entries(nutritionLabels)
       .filter(([key]) => nutrition[key] !== null && nutrition[key] !== "" && nutrition[key] !== undefined)
       .map(([key, [label, unit]]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(String(nutrition[key]))} ${escapeHtml(unit)}</td></tr>`)
@@ -528,7 +555,7 @@ function recipeBookHtml(items) {
       <h2>${escapeHtml(recipe.title)}</h2>
       ${Number(recipe.servings) > 0 ? `<p class="servings">Grundrezept für ${escapeHtml(formatIngredientAmount(Number(recipe.servings)))} Portionen</p>` : ""}
       ${parts}
-      ${nutritionRows ? `<section class="extra"><h3>Nährwertangaben</h3><p class="caption">Durchschnittliche Werte pro 100 g</p><table><tbody>${nutritionRows}</tbody></table></section>` : ""}
+      ${nutritionRows ? `<section class="extra"><h3>Nährwertangaben</h3><p class="caption">Angaben für ${escapeHtml(nutritionBasis)}</p><table><tbody>${nutritionRows}</tbody></table></section>` : ""}
       ${links.length ? `<section class="extra"><h3>Links</h3><ul class="links">${links.map(url => `<li>${escapeHtml(url)}</li>`).join("")}</ul></section>` : ""}
     </article>`;
   }).join("");
@@ -696,6 +723,12 @@ async function calculateRecipeNutrition() {
     summary.textContent = `Gewicht fehlt bei: ${missingWeights.map(item => item.name).join(", ")}. Bei Stück/EL/TL bitte das Gewicht in Gramm ergänzen.`;
     return;
   }
+  const nutritionBasis = getNutritionBasisFromForm();
+  const baseServings = Number(document.querySelector("#servingsInput").value);
+  if (nutritionBasis.unit === "servings" && !(baseServings > 0)) {
+    summary.textContent = "Für die Berechnung pro Portion bitte oben die Grundportionen des Rezepts eintragen.";
+    return;
+  }
   button.disabled = true;
   const missingNutrition = usableIngredients.filter(item => !item.nutritionPer100g);
   if (missingNutrition.length > 10) {
@@ -718,12 +751,15 @@ async function calculateRecipeNutrition() {
   }
 
   const totalWeight = usableIngredients.reduce((sum, item) => sum + ingredientWeight(item), 0);
+  const basisFactor = nutritionBasis.unit === "servings"
+    ? nutritionBasis.amount / baseServings
+    : nutritionBasis.amount / totalWeight;
   const calculated = {};
   Object.keys(nutritionFields).forEach(key => {
     const contributions = usableIngredients
       .filter(item => item.nutritionPer100g?.[key] !== null && item.nutritionPer100g?.[key] !== undefined)
       .map(item => Number(item.nutritionPer100g[key]) * ingredientWeight(item) / 100);
-    calculated[key] = contributions.length ? Math.round((contributions.reduce((sum, value) => sum + value, 0) / totalWeight * 100) * 100) / 100 : null;
+    calculated[key] = contributions.length ? Math.round((contributions.reduce((sum, value) => sum + value, 0) * basisFactor) * 100) / 100 : null;
   });
   setNutritionValues(calculated);
   formCalculation = {
@@ -732,7 +768,7 @@ async function calculateRecipeNutrition() {
     calculatedAt: new Date().toISOString(),
     source: "Open Food Facts – gemittelte Produktwerte"
   };
-  summary.textContent = `Berechnet aus ${usableIngredients.length} Zutaten und ${Math.round(totalWeight)} g Gesamtgewicht. Flüssigkeiten wurden näherungsweise mit 1 g/ml angesetzt.`;
+  summary.textContent = `Werte für ${nutritionBasisLabel(nutritionBasis)} berechnet, aus ${usableIngredients.length} Zutaten und ${Math.round(totalWeight)} g Gesamtgewicht. Flüssigkeiten wurden näherungsweise mit 1 g/ml angesetzt.`;
   button.disabled = false;
 }
 
@@ -921,6 +957,7 @@ function openForm(recipe = null, expectedVersion = null) {
   document.querySelector("#servingsInput").value = recipe?.servings ?? (recipe ? "" : 4);
   document.querySelector("#linksInput").value = recipe?.links.join("\n") || "";
   setNutritionValues(recipe?.nutrition || {});
+  setNutritionBasisForm(recipe?.nutritionBasis || { unit: "grams", amount: 100 });
   setBarcodeStatus("");
   renderScannedProducts();
   renderComponentRows();
@@ -947,6 +984,7 @@ function openDetail(id) {
   const imageUrl = validUrl(recipe.image);
   const links = (recipe.links || []).map(validUrl).filter(Boolean);
   const nutrition = recipe.nutrition || {};
+  const nutritionBasis = nutritionBasisLabel(recipe.nutritionBasis);
   const products = recipe.products || [];
   const baseServings = Number(recipe.servings) > 0 ? Number(recipe.servings) : null;
   const components = recipe.components?.length ? recipe.components : [normalizeComponent({ name: "Allgemein", instructions: recipe.instructions || "" })];
@@ -982,7 +1020,7 @@ function openDetail(id) {
       </div>
       ${baseServings ? `<div class="servings-calculator"><label for="detailServingsInput">Portionen</label><input id="detailServingsInput" type="number" min="0.5" max="1000" step="0.5" value="${escapeHtml(String(baseServings))}"><span>Grundrezept für ${escapeHtml(formatIngredientAmount(baseServings))} Portionen</span></div>` : '<p class="servings-missing">Für dieses Rezept ist noch keine Grund-Portionszahl hinterlegt. Du kannst sie über „Bearbeiten“ ergänzen.</p>'}
       <div class="recipe-parts-detail">${partsHtml}</div>
-      <section class="detail-links"><h3>Nährwertangaben</h3><table class="nutrition-table"><caption>Durchschnittliche Werte pro 100 g${recipe.nutritionCalculation ? ` · berechnet aus ${recipe.nutritionCalculation.totalWeightGrams} g Zutaten` : ""}</caption><tbody>${nutritionRows}</tbody></table>${hasNutritionValues(nutrition) ? '<p class="nutrition-note">Näherungswerte auf Grundlage der hinterlegten Zutatenmengen.</p>' : '<p class="empty-detail-info">Für dieses Rezept wurden noch keine Nährwerte berechnet.</p>'}</section>
+      <section class="detail-links"><h3>Nährwertangaben</h3><table class="nutrition-table"><caption>Angaben für ${escapeHtml(nutritionBasis)}${recipe.nutritionCalculation ? ` · berechnet aus ${recipe.nutritionCalculation.totalWeightGrams} g Zutaten` : ""}</caption><tbody>${nutritionRows}</tbody></table>${hasNutritionValues(nutrition) ? '<p class="nutrition-note">Näherungswerte auf Grundlage der hinterlegten Zutatenmengen.</p>' : '<p class="empty-detail-info">Für dieses Rezept wurden noch keine Nährwerte berechnet.</p>'}</section>
       ${products.length ? `<section class="detail-links"><h3>Gescannte Produkte</h3><div class="product-detail-list">${products.map(product => `<article class="product-detail"><strong>${escapeHtml(product.name)} · EAN ${escapeHtml(product.barcode)}</strong>${product.ingredientText ? `<p><b>Zutaten:</b> ${escapeHtml(product.ingredientText)}</p>` : ""}</article>`).join("")}</div><p class="nutrition-note">Produktdaten: Open Food Facts</p></section>` : ""}
       <section class="detail-links"><h3>Links</h3>${links.length ? `<div class="link-list">${links.map((url, index) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${url.includes("instagram.com") ? "Instagram" : `Webseite ${index + 1}`} ↗</a>`).join("")}</div>` : '<p class="empty-detail-info">Für dieses Rezept wurden noch keine Links hinterlegt.</p>'}</section>
     </div>`;
@@ -1086,6 +1124,7 @@ recipeForm.addEventListener("submit", async event => {
     links: document.querySelector("#linksInput").value.split("\n").map(item => item.trim()).filter(Boolean),
     products: formProducts,
     nutrition: getNutritionValues(),
+    nutritionBasis: getNutritionBasisFromForm(),
     nutritionCalculation: formCalculation
   };
   try {
@@ -1149,6 +1188,9 @@ document.querySelector("#scanBarcodeButton").addEventListener("click", startBarc
 document.querySelector("#stopScannerButton").addEventListener("click", stopBarcodeScanner);
 document.querySelector("#addComponentButton").addEventListener("click", addComponent);
 document.querySelector("#calculateNutritionButton").addEventListener("click", calculateRecipeNutrition);
+document.querySelector("#nutritionBasisUnitInput").addEventListener("change", event => {
+  document.querySelector("#nutritionBasisAmountInput").value = event.target.value === "servings" ? 1 : 100;
+});
 document.querySelector("#imageFileInput").addEventListener("change", event => {
   const file = event.target.files[0];
   if (!file) return;

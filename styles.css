@@ -201,6 +201,11 @@ footer { display: flex; justify-content: space-between; align-items: center; pad
 .ingredient-lookup-button { padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: #f8f5ed; cursor: pointer; white-space: nowrap; font-size: 9px; font-weight: 700; }
 .ingredient-editor-note { margin: 13px 0 0; color: var(--muted); font-size: 10px; }
 .calculate-button { flex: 0 0 auto; }
+.nutrition-basis { display: flex; align-items: center; gap: 9px; margin-top: 17px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 4px; background: white; color: var(--ink); font-size: 12px; font-weight: 700; }
+.nutrition-basis label { display: block; }
+.nutrition-basis input, .nutrition-basis select { width: auto; height: 38px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 3px; background: #fffdf8; font-size: 13px; }
+.nutrition-basis input { width: 100px; }
+.nutrition-basis select { min-width: 120px; }
 .calculation-summary { margin-top: 16px; padding: 11px 13px; border-left: 3px solid var(--sage); color: var(--muted); background: white; font-size: 11px; }
 .shopping-item { display: grid; grid-template-columns: 23px 1fr; align-items: start; gap: 8px; padding: 8px 0; border-bottom: 1px solid #ebe8de; font-size: 14px; }
 .shopping-item input { width: 17px; height: 17px; margin-top: 3px; accent-color: var(--sage-dark); cursor: pointer; }
@@ -287,6 +292,8 @@ footer { display: flex; justify-content: space-between; align-items: center; pad
   .servings-calculator { align-items: flex-start; flex-wrap: wrap; }
   .detail-columns { display: grid; gap: 30px; }
   .barcode-controls, .nutrition-grid { grid-template-columns: 1fr; }
+  .nutrition-basis { align-items: stretch; flex-direction: column; }
+  .nutrition-basis input, .nutrition-basis select { width: 100%; }
   .ingredient-row { grid-template-columns: 28px 1fr 1fr; }
   .ingredient-name-field { grid-column: 1 / -1; }
   .ingredient-weight-field { grid-column: 2 / 3; }

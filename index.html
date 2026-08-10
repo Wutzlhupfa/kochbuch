@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=20260809-8" />
+    <link rel="stylesheet" href="styles.css?v=20260810-9" />
   </head>
   <body>
     <div class="page-shell">
@@ -178,9 +178,14 @@
             <div class="form-section-heading">
               <div>
                 <h3 id="nutritionHeading">Nährwertangaben</h3>
-                <p>Aus den einzelnen Zutaten berechnet – pro 100 g des fertigen Gerichts</p>
+                <p>Lege fest, für welche Menge die eingetragenen oder berechneten Werte gelten.</p>
               </div>
               <button class="primary-button compact-button calculate-button" id="calculateNutritionButton" type="button">Nährwerte berechnen</button>
+            </div>
+            <div class="nutrition-basis">
+              <span>Die folgenden Werte gelten für</span>
+              <label><span class="sr-only">Bezugsmenge</span><input id="nutritionBasisAmountInput" type="number" min="0.01" max="100000" step="0.01" value="100" /></label>
+              <label><span class="sr-only">Einheit der Bezugsmenge</span><select id="nutritionBasisUnitInput"><option value="grams">Gramm</option><option value="servings">Portionen</option></select></label>
             </div>
             <div class="calculation-summary" id="calculationSummary">Noch nicht berechnet.</div>
             <div class="nutrition-grid">
@@ -249,6 +254,6 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=20260809-8"></script>
+    <script src="app.js?v=20260810-9"></script>
   </body>
 </html>
