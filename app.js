@@ -977,6 +977,65 @@ function closeForm() {
   recipeModal.close();
 }
 
+function copyTitleForRecipe(recipe) {
+  const baseTitle = String(recipe.title || "Rezept").replace(/ \(Kopie(?: \d+)?\)$/i, "");
+  let title = `${baseTitle} (Kopie)`;
+  let copyNumber = 2;
+  const existingTitles = new Set(recipes.map(item => String(item.title).toLocaleLowerCase("de")));
+  while (existingTitles.has(title.toLocaleLowerCase("de"))) {
+    title = `${baseTitle} (Kopie ${copyNumber})`;
+    copyNumber += 1;
+  }
+  return title;
+}
+
+function createIndependentRecipeCopy(recipe) {
+  const copy = typeof structuredClone === "function"
+    ? structuredClone(recipe)
+    : JSON.parse(JSON.stringify(recipe));
+  const sourceComponents = copy.components?.length
+    ? copy.components
+    : [normalizeComponent({ name: "Allgemein", instructions: copy.instructions || "" })];
+  const componentIds = new Map();
+  copy.components = sourceComponents.map(component => {
+    const newId = newComponentId();
+    componentIds.set(component.id, newId);
+    return { ...component, id: newId };
+  });
+  copy.ingredients = (copy.ingredients || []).map(ingredient => {
+    const normalized = normalizeIngredient(ingredient);
+    return {
+      ...normalized,
+      id: newIngredientId(),
+      componentId: componentIds.get(normalized.componentId) || copy.components[0].id,
+      checked: false
+    };
+  });
+  copy.id = crypto.randomUUID ? crypto.randomUUID() : `recipe-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  copy.title = copyTitleForRecipe(recipe);
+  return copy;
+}
+
+async function duplicateRecipe(recipe, button) {
+  if (!ensureCanEdit()) return;
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "…";
+  try {
+    const copy = createIndependentRecipeCopy(recipe);
+    await saveRecipeToCloud(copy, { isNew: true });
+    recipes = [copy, ...recipes];
+    render();
+    detailModal.close();
+    openForm(copy, recipeVersions.get(copy.id) || null);
+    alert(`„${copy.title}“ wurde als eigenständiges Rezept angelegt. Du kannst die Variante jetzt bearbeiten.`);
+  } catch (error) {
+    alert(error.message || "Das Rezept konnte nicht kopiert werden.");
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
 function openDetail(id) {
   const recipe = recipes.find(item => item.id === id);
   if (!recipe) return;
@@ -1014,6 +1073,7 @@ function openDetail(id) {
       <div class="detail-title-row">
         <h2>${escapeHtml(recipe.title)}</h2>
         <div class="detail-actions">
+          <button type="button" data-action="copy" title="Als neues Rezept kopieren" aria-label="Rezept kopieren">⧉</button>
           <button type="button" data-action="edit" title="Bearbeiten" aria-label="Rezept bearbeiten">✎</button>
           <button type="button" data-action="delete" title="Löschen" aria-label="Rezept löschen">⌫</button>
         </div>
@@ -1025,6 +1085,7 @@ function openDetail(id) {
       <section class="detail-links"><h3>Links</h3>${links.length ? `<div class="link-list">${links.map((url, index) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${url.includes("instagram.com") ? "Instagram" : `Webseite ${index + 1}`} ↗</a>`).join("")}</div>` : '<p class="empty-detail-info">Für dieses Rezept wurden noch keine Links hinterlegt.</p>'}</section>
     </div>`;
   detail.querySelector(".detail-close").addEventListener("click", () => detailModal.close());
+  detail.querySelector('[data-action="copy"]').addEventListener("click", event => duplicateRecipe(recipe, event.currentTarget));
   detail.querySelector('[data-action="edit"]').addEventListener("click", () => { detailModal.close(); openForm(recipe, detailRecipeVersion); });
   detail.querySelector('[data-action="delete"]').addEventListener("click", () => deleteRecipe(recipe, detailRecipeVersion));
   const servingsInput = detail.querySelector("#detailServingsInput");

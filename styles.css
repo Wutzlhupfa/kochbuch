@@ -87,7 +87,7 @@ h1 { max-width: 700px; margin: 0; font-size: clamp(58px, 8vw, 104px); letter-spa
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #5f845f; box-shadow: 0 0 0 3px rgba(95,132,95,.14); }
 .storage-status.browser-storage { color: #8a6045; border-color: #dcc8b7; background: #f6ece3; }
 .storage-status.browser-storage .status-dot { background: #bd6b4f; box-shadow: 0 0 0 3px rgba(189,107,79,.14); }
-.backup-panel { display: flex; align-items: center; justify-content: space-between; gap: 28px; margin: 0 0 46px; padding: 24px 26px; border: 1px solid #cad6c6; border-radius: 5px; background: #edf2e9; }
+.backup-panel { display: flex; align-items: center; justify-content: space-between; gap: 28px; margin: 46px 0 0; padding: 24px 26px; border: 1px solid #cad6c6; border-radius: 5px; background: #edf2e9; }
 .backup-panel h3 { margin: 2px 0 6px; font-size: 26px; }
 .backup-panel p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .backup-panel .backup-kicker { color: var(--sage-dark); font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
