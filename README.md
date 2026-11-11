@@ -1,47 +1,33 @@
 # Küchenbuch
 
-Eine kleine, lokale Website zum Sammeln und Verwalten persönlicher Rezepte.
+Bestehende Rezeptsammlung mit HTML, CSS und JavaScript, Supabase (Anmeldung, Rezepte als JSON und Bilder) und GitHub Pages.
 
-## Starten
-
-Im Projektordner den lokalen Küchenbuch-Server starten:
+## Lokal starten
 
 ```bash
 python3 server.py
 ```
 
-Danach `http://127.0.0.1:8765` im Browser aufrufen. Der Server muss während der Benutzung laufen.
+`http://127.0.0.1:8765` öffnen. Alternativ auf dem Mac `Küchenbuch starten.command` verwenden. Der lokale Python-Server speichert Rezepte in `data/recipes.json` und Bilder in `images/`. Im lokalen Serverbetrieb wird ausschließlich diese lokale Sammlung verwendet. Eine statische Vorschau ohne API verwendet wie GitHub Pages die vorhandene Cloud-Anbindung. Cloud-Änderungen erfordern eine Anmeldung; fehlgeschlagene Schreibvorgänge werden nicht als Erfolg angezeigt. Eine leere Cloud wird nicht automatisch mit lokalen Daten befüllt.
 
-Auf dem Mac kann alternativ `Küchenbuch starten.command` doppelt angeklickt werden.
+## Rezeptverwaltung
 
-## Funktionen
+- Rezepte erstellen, bearbeiten, löschen und unabhängig duplizieren
+- Kategorien, Textsuche nach Titel/Zutaten und Sortierung
+- Rezeptteile mit eigenen Anleitungen und zugeordneten Zutaten
+- Zutatenmengen nach Portionen skalieren
+- Manuelle optionale Nährwerte für 100 g oder 1 Portion; alte Bezugsmengen bleiben auswählbar
+- Bisherige Nährwerte ohne ausdrückliche Bestätigung werden als überprüfungsbedürftig angezeigt
+- Vorbereitungszeit, Koch-/Backzeit, Ruhe-/Gehzeit, Schwierigkeit und fertiges Gesamtgewicht
+- Freie Tags mit Vorschlägen aus der Sammlung und einzelnem Entfernen
+- Kombinierte Kategorie-, Tag-, Gesamtdauer-, Schwierigkeits- und Favoritenfilter
+- Herzen auf Karten und in Rezeptdetails; Duplikate beginnen ohne Favoritenstatus
+- Rezeptbilder, Links und bestehende Exportfunktionen
 
-- Rezepte anlegen, bearbeiten und löschen
-- Kategorien: Vorspeise, Hauptspeise und Nachspeise
-- Suche nach Titel und Zutaten
-- Zutaten als einzelne Einkaufslisten-Positionen mit Menge, Einheit und Checkbox
-- Frei benennbare Rezeptteile wie Teig, Sauce oder mehrere Füllungen mit eigener Anleitung
-- Zutaten über „Gehört zu“ einem Rezeptteil zuordnen
-- Durchschnittliche Nährwerte für Zutaten suchen und Rezeptwerte pro 100 g berechnen
-- Zubereitungsanleitung
-- Verknüpfung mit Instagram und anderen Webseiten
-- Rezeptbilder direkt vom lokalen Gerät hochladen
-- Produktsuche per EAN/Barcode über Open Food Facts
-- Kamera-Barcodeerkennung in unterstützten Browsern
-- Gespeicherte Produktzutaten und editierbare Nährwerttabelle pro 100 g
-- Automatische Speicherung in `data/recipes.json` im Programmordner
+Zeiten werden als einfache Summe der bekannten Zeitfelder dargestellt; parallele Schritte sind nicht berücksichtigt. Rezepte ohne Zeitangaben sind bei aktivem Zeitlimit ausgeschlossen. Mehrere gewählte Tags müssen alle zutreffen.
 
-Die Rezeptdatei bleibt unabhängig von Cookies und Browserdaten erhalten. Wenn der komplette Projektordner hochgeladen oder kopiert wird, ist die Rezeptsammlung darin enthalten. Die lokale Programmschnittstelle ist nur auf diesem Computer erreichbar und überträgt keine Daten an einen externen Server.
+## Datenkompatibilität
 
-Hochgeladene Rezeptbilder werden als eigene Dateien im Unterordner `images/` gespeichert. Beim Sichern oder Veröffentlichen muss deshalb immer der komplette Projektordner einschließlich dieses Unterordners verwendet werden.
+Neue optionale Felder liegen direkt im Rezeptobjekt: `prepMinutes`, `cookMinutes`, `restMinutes`, `finishedWeightGrams`, `difficulty`, `tags`, `favorite` und `nutritionVerified`. Fehlende Zahlen werden als `null` gespeichert; 0 bleibt ein eigenständiger Wert. `servings`, `nutrition` und `nutritionBasis` werden weiterhin verwendet. Nährwerte werden weder berechnet noch mit der Portionsanpassung verändert.
 
-Für die Kamerafunktion empfiehlt sich ein Chromium-basierter Browser wie Chrome. Alternativ kann die EAN immer manuell eingegeben werden. Produktinformationen werden aus der offenen Datenbank Open Food Facts abgerufen; nicht jedes Produkt ist dort vollständig erfasst. Übernommene Angaben sollten mit der Verpackung verglichen werden.
-
-## Nährwertberechnung
-
-Über „Nährwerte berechnen“ sucht die Website nur für Zutaten ohne hinterlegte Werte nach passenden Produkten bei Open Food Facts und bildet daraus einen Durchschnitt. Ergebnisse werden in `data/nutrition-cache.json` lokal zwischengespeichert. Die Berechnung verwendet das Gesamtgewicht aller Zutaten und gibt Werte pro 100 g aus.
-
-- `g` und `kg` werden exakt in Gramm umgerechnet.
-- `ml` und `l` werden näherungsweise mit 1 g/ml gerechnet.
-- Bei `Stück`, `EL`, `TL` und `Prise` ist ein zusätzliches Gewicht in Gramm erforderlich.
-- Garverlust, Wasseraufnahme und unterschiedliche Lebensmitteldichten sind nicht automatisch bekannt. Die Ergebnisse sind deshalb Näherungswerte und bleiben editierbar.
+Vorhandene zusätzliche Rezept-, Rezeptteil- und Zutatenfelder sowie alte Produktinformationen und Berechnungsmetadaten bleiben beim Bearbeiten erhalten. Alte Nährwert-Caches werden nicht mehr verwendet, aber als Datenbestand belassen. Barcode-, Produkt- und automatische Nährwertsuche einschließlich ihrer Python-Endpunkte wurden entfernt.

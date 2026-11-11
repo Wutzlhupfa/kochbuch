@@ -1,7 +1,7 @@
 const STORAGE_KEY = "kuechenbuch-recipes-v1";
 const SUPABASE_URL = "https://ohdamaixedupjivfobsv.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_65F5g7J7EJ0LzAqxchLKCA_6j9K31yM";
-const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+let supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 let recipes = [];
 let storageMode = "checking";
 let currentUser = null;
@@ -12,13 +12,15 @@ let cloudRefreshStarted = false;
 let activeCategory = "Alle";
 let searchTerm = "";
 let sortMode = "title_asc";
-let formProducts = [];
 let formIngredients = [];
-let formCalculation = null;
+let editingRecipeSnapshot = null;
+let formTags = [];
+let selectedTags = [];
+let maxDuration = null;
+let difficultyFilter = "";
+let favoritesOnly = false;
+const favoriteWrites = new Set();
 let formComponents = [];
-let scannerStream = null;
-let scannerAnimationFrame = null;
-let lastScanAttempt = 0;
 let formImage = "";
 let pendingImageFile = null;
 let imagePreviewObjectUrl = "";
@@ -64,7 +66,7 @@ function closeAuth() {
 }
 
 function ensureCanEdit() {
-  if (currentUser) return true;
+  if (currentUser || storageMode === "file") return true;
   openAuth();
   return false;
 }
@@ -106,13 +108,7 @@ async function loadRecipes() {
       }
 
       recipes = await loadPublishedRecipes();
-      if (currentUser && recipes.length) {
-        await importRecipesToCloud(recipes);
-        await refreshRecipesFromCloud({ updateStatus: false });
-        setStorageStatus("cloud", "Bestehende Sammlung nach Supabase importiert");
-      } else {
-        setStorageStatus("published", "Veröffentlichte Sammlung · zum Importieren anmelden");
-      }
+      setStorageStatus("published", "Veröffentlichte Sammlung · Cloud enthält noch keine Rezepte");
       return;
     } catch (error) {
       console.error("Supabase konnte nicht geladen werden:", error);
@@ -132,28 +128,6 @@ async function loadRecipes() {
 function applyCloudRows(rows) {
   recipes = rows.map(row => row.data);
   recipeVersions = new Map(rows.map(row => [row.id, row.updated_at]));
-}
-
-async function importRecipesToCloud(items) {
-  if (supabaseClient && currentUser) {
-    const authenticatedUser = await requireAuthenticatedCloudUser();
-    const timestamp = new Date().toISOString();
-    const rows = items.map(recipe => ({
-      id: recipe.id,
-      data: recipe,
-      updated_at: timestamp,
-      updated_by: authenticatedUser.id
-    }));
-    if (rows.length) {
-      const { error } = await supabaseClient.from("recipes").upsert(rows, { onConflict: "id" });
-      if (error) throw new Error(`Cloud-Speichern fehlgeschlagen: ${error.message}`);
-    }
-    localStorage.removeItem(STORAGE_KEY);
-    setStorageStatus("cloud", "Zentral in Supabase gespeichert");
-    return true;
-  }
-
-  return saveRecipesToLocalServer();
 }
 
 async function saveRecipeToCloud(recipe, { expectedVersion = null, isNew = false } = {}) {
@@ -194,7 +168,8 @@ async function saveRecipeToCloud(recipe, { expectedVersion = null, isNew = false
     throw new Error("Bitte zuerst anmelden. Das Rezept wurde noch nicht gespeichert.");
   }
 
-  return saveRecipesToLocalServer();
+  return saveRecipesToLocalServer(recipes.some(item => item.id === recipe.id)
+    ? recipes.map(item => item.id === recipe.id ? recipe : item) : [recipe, ...recipes]);
 }
 
 async function deleteRecipeFromCloud(recipe) {
@@ -217,26 +192,20 @@ async function deleteRecipeFromCloud(recipe) {
       cloudWriteInProgress -= 1;
     }
   }
-  return saveRecipesToLocalServer();
+  if (!ensureCanEdit()) throw new Error("Bitte zuerst anmelden.");
+  return saveRecipesToLocalServer(recipes.filter(item => item.id !== recipe.id));
 }
 
-async function saveRecipesToLocalServer() {
-  try {
-    const response = await fetch("/api/recipes", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(recipes)
-    });
-    if (!response.ok) throw new Error("Speichern fehlgeschlagen");
-    localStorage.removeItem(STORAGE_KEY);
-    setStorageStatus("file", "Sicher im Programmordner gespeichert");
-    return true;
-  } catch {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(recipes));
-    setStorageStatus("browser", "Nur im Browser gespeichert – bitte server.py starten");
-    alert("Der Programmordner ist gerade nicht erreichbar. Das Rezept wurde vorsichtshalber nur im Browser gespeichert. Starte die Website mit server.py, damit es in data/recipes.json geschrieben wird.");
-    return false;
-  }
+async function saveRecipesToLocalServer(items) {
+  if (storageMode !== "file") throw new Error("Kein beschreibbarer Speicher verfügbar. Bitte anmelden oder server.py starten.");
+  const response = await fetch("/api/recipes", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(items)
+  });
+  if (!response.ok) throw new Error("Speichern im Programmordner fehlgeschlagen. Deine Änderung wurde nicht übernommen.");
+  setStorageStatus("file", "Sicher im Programmordner gespeichert");
+  return true;
 }
 
 async function refreshRecipesFromCloud({ updateStatus = true } = {}) {
@@ -379,6 +348,7 @@ function hasNutritionValues(nutrition = {}) {
 }
 
 function normalizeNutritionBasis(value = {}) {
+  value = value || {};
   const unit = value.unit === "servings" ? "servings" : "grams";
   const amount = Number(value.amount);
   return { unit, amount: amount > 0 ? amount : (unit === "servings" ? 1 : 100) };
@@ -392,16 +362,20 @@ function nutritionBasisLabel(value = {}) {
 }
 
 function getNutritionBasisFromForm() {
-  return normalizeNutritionBasis({
-    unit: document.querySelector("#nutritionBasisUnitInput").value,
-    amount: document.querySelector("#nutritionBasisAmountInput").value
-  });
+  return JSON.parse(document.querySelector("#nutritionBasisInput").value);
 }
 
 function setNutritionBasisForm(value = {}) {
   const basis = normalizeNutritionBasis(value);
-  document.querySelector("#nutritionBasisUnitInput").value = basis.unit;
-  document.querySelector("#nutritionBasisAmountInput").value = basis.amount;
+  const select = document.querySelector("#nutritionBasisInput");
+  select.querySelectorAll(".legacy-basis").forEach(option => option.remove());
+  const serialized = JSON.stringify(basis);
+  if (![...select.options].some(option => option.value === serialized)) {
+    const option = new Option(`${nutritionBasisLabel(basis)} (bisherige Bezugsmenge)`, serialized);
+    option.className = "legacy-basis";
+    select.add(option);
+  }
+  select.value = serialized;
 }
 
 const ingredientUnits = ["g", "kg", "ml", "l", "Stück", "EL", "TL", "Prise"];
@@ -416,6 +390,7 @@ function newComponentId() {
 
 function normalizeComponent(value = {}) {
   return {
+    ...value,
     id: value.id || newComponentId(),
     name: value.name || "Rezeptteil",
     instructions: value.instructions || ""
@@ -425,10 +400,11 @@ function normalizeComponent(value = {}) {
 function normalizeIngredient(value) {
   if (value && typeof value === "object") {
     return {
+      ...value,
       id: value.id || newIngredientId(),
       name: value.name || "",
       amount: value.amount ?? "",
-      unit: ingredientUnits.includes(value.unit) ? value.unit : "g",
+      unit: value.unit || "g",
       weightGrams: value.weightGrams ?? "",
       checked: Boolean(value.checked),
       nutritionPer100g: value.nutritionPer100g || null,
@@ -459,18 +435,6 @@ function normalizeAllRecipes() {
       if (!recipe.components.some(component => component.id === ingredient.componentId)) ingredient.componentId = fallbackComponentId;
     });
   });
-}
-
-function ingredientWeight(ingredient) {
-  const explicitWeight = Number(ingredient.weightGrams);
-  if (explicitWeight > 0) return explicitWeight;
-  const amount = Number(ingredient.amount);
-  if (!(amount > 0)) return null;
-  if (ingredient.unit === "g") return amount;
-  if (ingredient.unit === "kg") return amount * 1000;
-  if (ingredient.unit === "ml") return amount;
-  if (ingredient.unit === "l") return amount * 1000;
-  return null;
 }
 
 function formatIngredientAmount(value) {
@@ -647,40 +611,26 @@ function renderIngredientRows() {
   });
   formIngredients.forEach((ingredient, index) => {
     const row = document.createElement("article");
-    row.className = `ingredient-row${ingredient.checked ? " checked" : ""}`;
-    const unitOptions = ingredientUnits.map(unit => `<option value="${unit}"${unit === ingredient.unit ? " selected" : ""}>${unit}</option>`).join("");
+    row.className = "ingredient-row";
+    const unitOptions = [...new Set([...ingredientUnits, ingredient.unit])].map(unit => `<option value="${unit}"${unit === ingredient.unit ? " selected" : ""}>${unit}</option>`).join("");
     const componentOptions = formComponents.map(component => `<option value="${escapeHtml(component.id)}"${component.id === ingredient.componentId ? " selected" : ""}>${escapeHtml(component.name)}</option>`).join("");
-    const sourceText = ingredient.nutritionPer100g
-      ? `${ingredient.nutritionSource || "Nährwerte vorhanden"}${ingredient.nutritionMatches?.length ? ` · Basis: ${ingredient.nutritionMatches.slice(0, 2).join(", ")}` : ""}`
-      : "Noch keine Nährwerte zugeordnet";
     row.innerHTML = `
-      <label class="ingredient-check-wrap"><span class="sr-only">Auf Einkaufsliste abhaken</span><input class="ingredient-check" type="checkbox" ${ingredient.checked ? "checked" : ""}></label>
       <label>Menge<input class="ingredient-amount-input" type="number" min="0" step="0.01" value="${escapeHtml(String(ingredient.amount ?? ""))}" placeholder="100"></label>
       <label>Einheit<select class="ingredient-unit-input">${unitOptions}</select></label>
       <label class="ingredient-name-field">Zutat<input class="ingredient-name-input" type="text" value="${escapeHtml(ingredient.name)}" placeholder="z. B. Mehl (optional)"></label>
-      <label class="ingredient-weight-field">Gewicht g<input class="ingredient-weight-input" type="number" min="0" step="0.1" value="${escapeHtml(String(ingredient.weightGrams ?? ""))}" placeholder="auto"></label>
       <button class="ingredient-row-remove" type="button" aria-label="Zutat entfernen">×</button>
       <label class="ingredient-component-field">Gehört zu<select class="ingredient-component-input">${componentOptions}</select></label>
-      <div class="ingredient-lookup"><p class="ingredient-lookup-status ${ingredient.nutritionPer100g ? "success" : ""}">${escapeHtml(sourceText)}</p><button class="ingredient-lookup-button" type="button">Nährwerte suchen</button></div>`;
+      `;
 
     const update = (key, value) => { ingredient[key] = value; };
-    row.querySelector(".ingredient-check").addEventListener("change", event => { update("checked", event.target.checked); row.classList.toggle("checked", event.target.checked); });
     row.querySelector(".ingredient-amount-input").addEventListener("input", event => update("amount", event.target.value === "" ? "" : Number(event.target.value)));
     row.querySelector(".ingredient-unit-input").addEventListener("change", event => update("unit", event.target.value));
-    row.querySelector(".ingredient-name-input").addEventListener("input", event => {
-      update("name", event.target.value);
-      ingredient.nutritionPer100g = null;
-      ingredient.nutritionSource = "";
-      row.querySelector(".ingredient-lookup-status").textContent = "Zutat geändert – Nährwerte neu suchen";
-      row.querySelector(".ingredient-lookup-status").className = "ingredient-lookup-status";
-    });
-    row.querySelector(".ingredient-weight-input").addEventListener("input", event => update("weightGrams", event.target.value === "" ? "" : Number(event.target.value)));
+    row.querySelector(".ingredient-name-input").addEventListener("input", event => update("name", event.target.value));
     row.querySelector(".ingredient-component-input").addEventListener("change", event => {
       update("componentId", event.target.value);
       renderIngredientRows();
     });
     row.querySelector(".ingredient-row-remove").addEventListener("click", () => { formIngredients.splice(index, 1); renderIngredientRows(); });
-    row.querySelector(".ingredient-lookup-button").addEventListener("click", event => lookupIngredientNutrition(ingredient, event.target, row.querySelector(".ingredient-lookup-status")));
     const target = groupContainers.get(ingredient.componentId) || groupContainers.values().next().value;
     if (target) {
       target.querySelector(".ingredient-group-empty")?.remove();
@@ -689,212 +639,147 @@ function renderIngredientRows() {
   });
 }
 
-async function lookupIngredientNutrition(ingredient, button = null, statusElement = null) {
-  if (!ingredient.name.trim()) throw new Error("Bitte zuerst eine Zutat eingeben.");
-  if (button) button.disabled = true;
-  if (statusElement) { statusElement.textContent = "Durchschnittswerte werden gesucht …"; statusElement.className = "ingredient-lookup-status"; }
-  try {
-    const response = await fetch(`/api/ingredient?query=${encodeURIComponent(ingredient.name.trim())}`);
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Keine Nährwerte gefunden.");
-    ingredient.nutritionPer100g = result.nutrition;
-    ingredient.nutritionSource = `${result.source} (${result.sampleCount} Treffer)`;
-    ingredient.nutritionMatches = result.matches || [];
-    if (statusElement) { statusElement.textContent = ingredient.nutritionSource; statusElement.className = "ingredient-lookup-status success"; }
-    return true;
-  } catch (error) {
-    if (statusElement) { statusElement.textContent = error.message; statusElement.className = "ingredient-lookup-status error"; }
-    throw error;
-  } finally {
-    if (button) button.disabled = false;
-  }
+function optionalNumber(value) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
-async function calculateRecipeNutrition() {
-  const button = document.querySelector("#calculateNutritionButton");
-  const summary = document.querySelector("#calculationSummary");
-  const usableIngredients = formIngredients.filter(item => item.name.trim());
-  if (!usableIngredients.length) {
-    summary.textContent = "Bitte zuerst mindestens eine Zutat anlegen.";
-    return;
-  }
-  const missingWeights = usableIngredients.filter(item => !ingredientWeight(item));
-  if (missingWeights.length) {
-    summary.textContent = `Gewicht fehlt bei: ${missingWeights.map(item => item.name).join(", ")}. Bei Stück/EL/TL bitte das Gewicht in Gramm ergänzen.`;
-    return;
-  }
-  const nutritionBasis = getNutritionBasisFromForm();
-  const baseServings = Number(document.querySelector("#servingsInput").value);
-  if (nutritionBasis.unit === "servings" && !(baseServings > 0)) {
-    summary.textContent = "Für die Berechnung pro Portion bitte oben die Grundportionen des Rezepts eintragen.";
-    return;
-  }
-  button.disabled = true;
-  const missingNutrition = usableIngredients.filter(item => !item.nutritionPer100g);
-  if (missingNutrition.length > 10) {
-    summary.textContent = "Bitte zuerst bei einigen Zutaten einzeln auf „Nährwerte suchen“ klicken. Pro Minute sind höchstens zehn neue Internetsuchen möglich.";
-    button.disabled = false;
-    return;
-  }
-  const failed = [];
-  for (let index = 0; index < missingNutrition.length; index += 1) {
-    const ingredient = missingNutrition[index];
-    summary.textContent = `Suche Nährwerte ${index + 1}/${missingNutrition.length}: ${ingredient.name} …`;
-    try { await lookupIngredientNutrition(ingredient); }
-    catch { failed.push(ingredient.name); }
-  }
-  renderIngredientRows();
-  if (failed.length) {
-    summary.textContent = `Keine Berechnung möglich. Es fehlen Nährwerte für: ${failed.join(", ")}. Bitte Bezeichnung präzisieren oder Werte über einen Barcode übernehmen.`;
-    button.disabled = false;
-    return;
-  }
-
-  const totalWeight = usableIngredients.reduce((sum, item) => sum + ingredientWeight(item), 0);
-  const basisFactor = nutritionBasis.unit === "servings"
-    ? nutritionBasis.amount / baseServings
-    : nutritionBasis.amount / totalWeight;
-  const calculated = {};
-  Object.keys(nutritionFields).forEach(key => {
-    const contributions = usableIngredients
-      .filter(item => item.nutritionPer100g?.[key] !== null && item.nutritionPer100g?.[key] !== undefined)
-      .map(item => Number(item.nutritionPer100g[key]) * ingredientWeight(item) / 100);
-    calculated[key] = contributions.length ? Math.round((contributions.reduce((sum, value) => sum + value, 0) * basisFactor) * 100) / 100 : null;
+function normalizeTags(tags) {
+  const unique = new Map();
+  (Array.isArray(tags) ? tags : []).forEach(value => {
+    const tag = String(value).normalize("NFKC").trim().replace(/\s+/g, " ");
+    const key = tag.toLocaleLowerCase("de");
+    if (tag && !unique.has(key)) unique.set(key, tag);
   });
-  setNutritionValues(calculated);
-  formCalculation = {
-    totalWeightGrams: Math.round(totalWeight * 10) / 10,
-    ingredientCount: usableIngredients.length,
-    calculatedAt: new Date().toISOString(),
-    source: "Open Food Facts – gemittelte Produktwerte"
-  };
-  summary.textContent = `Werte für ${nutritionBasisLabel(nutritionBasis)} berechnet, aus ${usableIngredients.length} Zutaten und ${Math.round(totalWeight)} g Gesamtgewicht. Flüssigkeiten wurden näherungsweise mit 1 g/ml angesetzt.`;
-  button.disabled = false;
+  return [...unique.values()];
 }
-
-function renderScannedProducts() {
-  const container = document.querySelector("#scannedProducts");
+function tagKey(tag) { return normalizeTags([tag])[0]?.toLocaleLowerCase("de") || ""; }
+function availableTags() {
+  return normalizeTags([...recipes.flatMap(recipe => recipe.tags || []), ...formTags, ...selectedTags])
+    .sort((a, b) => a.localeCompare(b, "de"));
+}
+function totalDuration(recipe) {
+  const values = [recipe.prepMinutes, recipe.cookMinutes, recipe.restMinutes].map(optionalNumber).filter(value => value !== null);
+  return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
+}
+function recipeSummary(recipe) {
+  const duration = totalDuration(recipe);
+  return [duration !== null ? `${formatIngredientAmount(duration)} Min. gesamt` : "",
+    Number(recipe.servings) > 0 ? `${formatIngredientAmount(recipe.servings)} Portionen` : "",
+    recipe.difficulty || ""].filter(Boolean);
+}
+function recipeInformationHtml(recipe) {
+  const fields = [["prepMinutes", "Vorbereitungszeit", "Min."], ["cookMinutes", "Koch-/Backzeit", "Min."], ["restMinutes", "Ruhe-/Gehzeit", "Min."], ["finishedWeightGrams", "Fertiges Gesamtgewicht", "g"]];
+  const rows = fields.filter(([key]) => optionalNumber(recipe[key]) !== null)
+    .map(([key, label, unit]) => `<div><dt>${label}</dt><dd>${formatIngredientAmount(recipe[key])} ${unit}</dd></div>`);
+  if (recipe.difficulty) rows.push(`<div><dt>Schwierigkeitsgrad</dt><dd>${escapeHtml(recipe.difficulty)}</dd></div>`);
+  if (totalDuration(recipe) !== null) rows.push(`<div><dt>Gesamtdauer</dt><dd>${formatIngredientAmount(totalDuration(recipe))} Min.</dd></div>`);
+  return rows.length ? `<section class="recipe-information"><h3>Rezeptinformationen</h3><dl>${rows.join("")}</dl>${totalDuration(recipe) !== null ? '<p class="nutrition-note">Summe der angegebenen Zeiten; parallele Schritte sind nicht berücksichtigt.</p>' : ""}</section>` : "";
+}
+function needsNutritionReview(recipe) {
+  return Boolean(recipe && hasNutritionValues(recipe.nutrition || {}) && recipe.nutritionVerified !== true);
+}
+function matchesFilters(recipe) {
+  const tags = normalizeTags(recipe.tags).map(tagKey);
+  const duration = totalDuration(recipe);
+  const searchable = `${recipe.title} ${(recipe.ingredients || []).map(item => normalizeIngredient(item).name).join(" ")}`.toLocaleLowerCase("de");
+  return (activeCategory === "Alle" || recipe.category === activeCategory)
+    && searchable.includes(searchTerm.toLocaleLowerCase("de"))
+    && selectedTags.every(tag => tags.includes(tagKey(tag)))
+    && (maxDuration === null || (duration !== null && duration <= maxDuration))
+    && (!difficultyFilter || recipe.difficulty === difficultyFilter)
+    && (!favoritesOnly || recipe.favorite === true);
+}
+function renderTagChoices() {
+  const container = document.querySelector("#tagFilterChoices");
   container.replaceChildren();
-  formProducts.forEach((product, index) => {
-    const item = document.createElement("article");
-    item.className = "product-item";
-    const imageUrl = validUrl(product.image);
-    item.innerHTML = `
-      ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="">` : '<span class="product-placeholder">▦</span>'}
-      <div><strong>${escapeHtml(product.name)}</strong><p>${escapeHtml(product.brand || `EAN ${product.barcode}`)}</p>${product.ingredientText ? `<p>Zutaten: ${escapeHtml(product.ingredientText)}</p>` : ""}</div>
-      <button class="product-remove" type="button" aria-label="Produkt entfernen">×</button>`;
-    item.querySelector(".product-remove").addEventListener("click", () => {
-      formProducts.splice(index, 1);
-      renderScannedProducts();
+  availableTags().forEach(tag => {
+    const label = document.createElement("label");
+    label.className = "tag-choice";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = selectedTags.some(value => tagKey(value) === tagKey(tag));
+    input.addEventListener("change", () => {
+      selectedTags = input.checked ? normalizeTags([...selectedTags, tag]) : selectedTags.filter(value => tagKey(value) !== tagKey(tag));
+      render();
     });
-    container.append(item);
+    label.append(input, document.createTextNode(tag));
+    container.append(label);
+  });
+}
+function renderFormTags() {
+  const container = document.querySelector("#formTags");
+  container.replaceChildren();
+  formTags.forEach(tag => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tag-chip";
+    button.textContent = `${tag} ×`;
+    button.setAttribute("aria-label", `Tag ${tag} entfernen`);
+    button.addEventListener("click", () => { formTags = formTags.filter(value => tagKey(value) !== tagKey(tag)); renderFormTags(); });
+    container.append(button);
+  });
+  document.querySelector("#tagSuggestions").replaceChildren(...availableTags().map(tag => new Option(tag, tag)));
+}
+function addFormTag() {
+  const input = document.querySelector("#tagInput");
+  formTags = normalizeTags([...formTags, input.value]);
+  input.value = "";
+  renderFormTags();
+}
+function configureFavoriteButton(button, recipe) {
+  button.textContent = recipe.favorite === true ? "♥" : "♡";
+  button.classList.toggle("active", recipe.favorite === true);
+  button.setAttribute("aria-pressed", String(recipe.favorite === true));
+  button.setAttribute("aria-label", recipe.favorite === true ? "Favorit entfernen" : "Als Favorit markieren");
+  button.disabled = favoriteWrites.has(recipe.id);
+  button.addEventListener("click", async event => {
+    event.stopPropagation();
+    if (!ensureCanEdit() || favoriteWrites.has(recipe.id)) return;
+    favoriteWrites.add(recipe.id);
+    button.disabled = true;
+    // Use the latest loaded version; commit UI state only after persistence succeeds.
+    const latest = recipes.find(item => item.id === recipe.id);
+    if (!latest) { favoriteWrites.delete(recipe.id); button.disabled = false; return; }
+    const updated = { ...latest, favorite: latest.favorite !== true };
+    try {
+      await saveRecipeToCloud(updated, { expectedVersion: recipeVersions.get(recipe.id) || null });
+      recipes = recipes.map(item => item.id === updated.id ? updated : item);
+      render();
+      if (detailModal.open && document.querySelector("#recipeDetail").dataset.recipeId === recipe.id) openDetail(recipe.id);
+    } catch (error) {
+      alert(error.message || "Favorit konnte nicht gespeichert werden.");
+      if (error.message?.includes("inzwischen")) await refreshRecipesFromCloud();
+    } finally {
+      favoriteWrites.delete(recipe.id);
+      document.querySelectorAll(".recipe-card").forEach(card => { card.querySelector(".favorite-button").disabled = favoriteWrites.has(card.dataset.id); });
+      const detailHeart = document.querySelector('[data-action="favorite"]');
+      if (detailHeart) detailHeart.disabled = favoriteWrites.has(document.querySelector("#recipeDetail").dataset.recipeId);
+    }
   });
 }
 
-function setBarcodeStatus(message, isError = false) {
-  const status = document.querySelector("#barcodeStatus");
-  status.textContent = message;
-  status.classList.toggle("error", isError);
-}
-
-async function lookupBarcode() {
-  const input = document.querySelector("#barcodeInput");
-  const barcode = input.value.replace(/\D/g, "");
-  input.value = barcode;
-  if (!/^\d{8,14}$/.test(barcode)) {
-    setBarcodeStatus("Bitte einen Barcode mit 8 bis 14 Ziffern eingeben.", true);
-    return;
-  }
-  if (formProducts.some(product => product.barcode === barcode)) {
-    setBarcodeStatus("Dieses Produkt wurde bereits hinzugefügt.", true);
-    return;
-  }
-
-  const button = document.querySelector("#lookupBarcodeButton");
-  button.disabled = true;
-  setBarcodeStatus("Produktdaten werden geladen …");
-  try {
-    const response = await fetch(`/api/product?barcode=${encodeURIComponent(barcode)}`);
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Produkt wurde nicht gefunden.");
-    formProducts.push(result);
-    renderScannedProducts();
-    addIngredient({
-      name: result.name,
-      amount: 100,
-      unit: "g",
-      nutritionPer100g: result.nutrition,
-      nutritionSource: `Barcode ${result.barcode} · Open Food Facts`,
-      nutritionMatches: [result.name],
-      productBarcode: result.barcode
-    });
-    setBarcodeStatus(`${result.name} wurde als 100-g-Zutatenposition hinzugefügt. Passe die verwendete Menge bei Bedarf an.`);
-    input.value = "";
-  } catch (error) {
-    setBarcodeStatus(error.message || "Produktdaten konnten nicht geladen werden.", true);
-  } finally {
-    button.disabled = false;
-  }
-}
-
-function stopBarcodeScanner() {
-  if (scannerAnimationFrame) cancelAnimationFrame(scannerAnimationFrame);
-  scannerAnimationFrame = null;
-  if (scannerStream) scannerStream.getTracks().forEach(track => track.stop());
-  scannerStream = null;
-  const view = document.querySelector("#scannerView");
-  const video = document.querySelector("#scannerVideo");
-  video.srcObject = null;
-  view.hidden = true;
-}
-
-async function startBarcodeScanner() {
-  if (!("BarcodeDetector" in window) || !navigator.mediaDevices?.getUserMedia) {
-    setBarcodeStatus("Die Kamera-Barcoderkennung wird von diesem Browser nicht unterstützt. Bitte Chrome verwenden oder die EAN manuell eingeben.", true);
-    return;
-  }
-  try {
-    const supportedFormats = await BarcodeDetector.getSupportedFormats();
-    const formats = ["ean_13", "ean_8", "upc_a", "upc_e"].filter(format => supportedFormats.includes(format));
-    if (!formats.length) throw new Error("EAN-Barcodes werden von diesem Browser nicht unterstützt.");
-    const detector = new BarcodeDetector({ formats });
-    scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
-    const view = document.querySelector("#scannerView");
-    const video = document.querySelector("#scannerVideo");
-    video.srcObject = scannerStream;
-    view.hidden = false;
-    await video.play();
-    setBarcodeStatus("Halte den Barcode ruhig in den markierten Bereich.");
-
-    const scanFrame = async timestamp => {
-      if (!scannerStream) return;
-      if (timestamp - lastScanAttempt > 350) {
-        lastScanAttempt = timestamp;
-        try {
-          const barcodes = await detector.detect(video);
-          if (barcodes.length) {
-            document.querySelector("#barcodeInput").value = barcodes[0].rawValue;
-            stopBarcodeScanner();
-            await lookupBarcode();
-            return;
-          }
-        } catch { /* Der nächste Kameraframe wird erneut geprüft. */ }
-      }
-      scannerAnimationFrame = requestAnimationFrame(scanFrame);
-    };
-    scannerAnimationFrame = requestAnimationFrame(scanFrame);
-  } catch (error) {
-    stopBarcodeScanner();
-    setBarcodeStatus(error.name === "NotAllowedError" ? "Der Kamerazugriff wurde nicht erlaubt." : (error.message || "Kamera konnte nicht gestartet werden."), true);
-  }
-}
+document.querySelector("#addTagButton").addEventListener("click", addFormTag);
+document.querySelector("#tagInput").addEventListener("keydown", event => {
+  if (event.key === "Enter") { event.preventDefault(); addFormTag(); }
+});
+document.querySelector("#maxDurationInput").addEventListener("input", event => { maxDuration = optionalNumber(event.target.value); render(); });
+document.querySelector("#difficultyFilter").addEventListener("change", event => { difficultyFilter = event.target.value; render(); });
+document.querySelector("#favoritesFilter").addEventListener("change", event => { favoritesOnly = event.target.checked; render(); });
+document.querySelector("#resetFiltersButton").addEventListener("click", () => {
+  activeCategory = "Alle"; selectedTags = []; maxDuration = null; difficultyFilter = ""; favoritesOnly = false; searchTerm = "";
+  document.querySelector("#searchInput").value = "";
+  document.querySelector("#maxDurationInput").value = "";
+  document.querySelector("#difficultyFilter").value = "";
+  document.querySelector("#favoritesFilter").checked = false;
+  document.querySelectorAll(".category-tab").forEach(tab => tab.classList.toggle("active", tab.dataset.category === "Alle"));
+  render();
+});
 
 function render() {
-  const filtered = recipes.filter(recipe => {
-    const categoryMatches = activeCategory === "Alle" || recipe.category === activeCategory;
-    const searchable = `${recipe.title} ${(recipe.ingredients || []).map(item => normalizeIngredient(item).name).join(" ")}`.toLowerCase();
-    return categoryMatches && searchable.includes(searchTerm.toLowerCase());
-  });
+  renderTagChoices();
+  const filtered = recipes.filter(matchesFilters);
   const compareTitles = (left, right) => left.title.localeCompare(right.title, "de", { sensitivity: "base" });
   filtered.sort((left, right) => {
     if (sortMode === "title_desc") return compareTitles(right, left);
@@ -921,6 +806,9 @@ function render() {
     fragment.querySelector(".category-badge").textContent = recipe.category;
     fragment.querySelector("h3").textContent = recipe.title;
     fragment.querySelector(".card-open").addEventListener("click", () => openDetail(recipe.id));
+    fragment.querySelector(".card-meta").textContent = recipeSummary(recipe).join(" · ");
+    const heart = fragment.querySelector(".favorite-button");
+    configureFavoriteButton(heart, recipe);
     card.dataset.id = recipe.id;
     recipeGrid.append(fragment);
   });
@@ -937,7 +825,7 @@ function openForm(recipe = null, expectedVersion = null) {
   if (!ensureCanEdit()) return;
   editingRecipeVersion = recipe ? (expectedVersion || recipeVersions.get(recipe.id) || null) : null;
   recipeForm.reset();
-  formProducts = typeof structuredClone === "function" ? structuredClone(recipe?.products || []) : JSON.parse(JSON.stringify(recipe?.products || []));
+  editingRecipeSnapshot = recipe ? JSON.parse(JSON.stringify(recipe)) : {};
   formComponents = typeof structuredClone === "function" ? structuredClone(recipe?.components || []) : JSON.parse(JSON.stringify(recipe?.components || []));
   formComponents = formComponents.map(normalizeComponent);
   if (!formComponents.length) formComponents.push(normalizeComponent({ name: "Allgemein", instructions: recipe?.instructions || "" }));
@@ -947,7 +835,6 @@ function openForm(recipe = null, expectedVersion = null) {
     if (!formComponents.some(component => component.id === ingredient.componentId)) ingredient.componentId = formComponents[0].id;
   });
   if (!formIngredients.length) formIngredients.push(normalizeIngredient({}));
-  formCalculation = recipe?.nutritionCalculation || null;
   formImage = recipe?.image || "";
   pendingImageFile = null;
   document.querySelector("#formTitle").textContent = recipe ? "Rezept bearbeiten" : "Neues Rezept";
@@ -955,23 +842,26 @@ function openForm(recipe = null, expectedVersion = null) {
   document.querySelector("#titleInput").value = recipe?.title || "";
   document.querySelector("#categoryInput").value = recipe?.category || "Vorspeise";
   document.querySelector("#servingsInput").value = recipe?.servings ?? (recipe ? "" : 4);
-  document.querySelector("#linksInput").value = recipe?.links.join("\n") || "";
+  document.querySelector("#linksInput").value = recipe?.links?.join("\n") || "";
   setNutritionValues(recipe?.nutrition || {});
   setNutritionBasisForm(recipe?.nutritionBasis || { unit: "grams", amount: 100 });
-  setBarcodeStatus("");
-  renderScannedProducts();
+  for (const field of ["prepMinutes", "cookMinutes", "restMinutes", "finishedWeightGrams"]) {
+    document.querySelector(`#${field}Input`).value = recipe?.[field] ?? "";
+  }
+  document.querySelector("#difficultyInput").value = recipe?.difficulty || "";
+  formTags = normalizeTags(recipe?.tags);
+  renderFormTags();
+  const review = needsNutritionReview(recipe);
+  document.querySelector("#nutritionReviewNotice").hidden = !review;
+  document.querySelector("#nutritionConfirmedInput").checked = recipe?.nutritionVerified === true;
   renderComponentRows();
   renderIngredientRows();
-  document.querySelector("#calculationSummary").textContent = formCalculation
-    ? `Zuletzt berechnet aus ${formCalculation.ingredientCount} Zutaten und ${formCalculation.totalWeightGrams} g Gesamtgewicht.`
-    : "Noch nicht berechnet.";
   updateImagePreview();
   recipeModal.showModal();
   setTimeout(() => document.querySelector("#titleInput").focus(), 50);
 }
 
 function closeForm() {
-  stopBarcodeScanner();
   clearPreviewObjectUrl();
   editingRecipeVersion = null;
   recipeModal.close();
@@ -1013,6 +903,7 @@ function createIndependentRecipeCopy(recipe) {
   });
   copy.id = crypto.randomUUID ? crypto.randomUUID() : `recipe-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   copy.title = copyTitleForRecipe(recipe);
+  copy.favorite = false;
   return copy;
 }
 
@@ -1044,7 +935,6 @@ function openDetail(id) {
   const links = (recipe.links || []).map(validUrl).filter(Boolean);
   const nutrition = recipe.nutrition || {};
   const nutritionBasis = nutritionBasisLabel(recipe.nutritionBasis);
-  const products = recipe.products || [];
   const baseServings = Number(recipe.servings) > 0 ? Number(recipe.servings) : null;
   const components = recipe.components?.length ? recipe.components : [normalizeComponent({ name: "Allgemein", instructions: recipe.instructions || "" })];
   const nutritionRows = Object.entries(nutritionLabels)
@@ -1057,12 +947,13 @@ function openDetail(id) {
     const componentIngredients = recipe.ingredients
       .map((item, index) => ({ ingredient: normalizeIngredient(item), index }))
       .filter(({ ingredient }) => ingredient.componentId === component.id);
-    const shoppingList = componentIngredients.length
-      ? componentIngredients.map(({ ingredient, index }) => `<label class="shopping-item${ingredient.checked ? " checked" : ""}"><input class="shopping-check" data-index="${index}" type="checkbox" ${ingredient.checked ? "checked" : ""}><span class="scaled-ingredient-label" data-index="${index}">${escapeHtml(ingredientLabel(ingredient))}</span></label>`).join("")
+    const ingredientList = componentIngredients.length
+      ? componentIngredients.map(({ ingredient, index }) => `<li class="scaled-ingredient-label" data-index="${index}">${escapeHtml(ingredientLabel(ingredient))}</li>`).join("")
       : '<p class="empty-detail-info">Für diesen Teil wurden noch keine Zutaten zugeordnet.</p>';
-    return `<section class="recipe-part-detail"><h3 class="recipe-part-title">${escapeHtml(component.name)}</h3><div><h3>Zutaten &amp; Einkaufsliste</h3><div class="ingredient-list">${shoppingList}</div></div><div><h3>Zubereitung</h3><p class="instructions">${escapeHtml(component.instructions)}</p></div></section>`;
+    return `<section class="recipe-part-detail"><h3 class="recipe-part-title">${escapeHtml(component.name)}</h3><div><h3>Zutaten</h3><ul class="ingredient-list">${ingredientList}</ul></div><div><h3>Zubereitung</h3><p class="instructions">${escapeHtml(component.instructions)}</p></div></section>`;
   }).join("");
   const detail = document.querySelector("#recipeDetail");
+  detail.dataset.recipeId = recipe.id;
   detail.innerHTML = `
     <div class="detail-hero">
       ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(recipe.title)}">` : ""}
@@ -1073,17 +964,20 @@ function openDetail(id) {
       <div class="detail-title-row">
         <h2>${escapeHtml(recipe.title)}</h2>
         <div class="detail-actions">
+          <button class="favorite-button" type="button" data-action="favorite"></button>
           <button type="button" data-action="copy" title="Als neues Rezept kopieren" aria-label="Rezept kopieren">⧉</button>
           <button type="button" data-action="edit" title="Bearbeiten" aria-label="Rezept bearbeiten">✎</button>
           <button type="button" data-action="delete" title="Löschen" aria-label="Rezept löschen">⌫</button>
         </div>
       </div>
       ${baseServings ? `<div class="servings-calculator"><label for="detailServingsInput">Portionen</label><input id="detailServingsInput" type="number" min="0.5" max="1000" step="0.5" value="${escapeHtml(String(baseServings))}"><span>Grundrezept für ${escapeHtml(formatIngredientAmount(baseServings))} Portionen</span></div>` : '<p class="servings-missing">Für dieses Rezept ist noch keine Grund-Portionszahl hinterlegt. Du kannst sie über „Bearbeiten“ ergänzen.</p>'}
+      ${recipeInformationHtml(recipe)}
+      <div class="tag-chips">${normalizeTags(recipe.tags).map(tag => `<span class="tag-chip">${escapeHtml(tag)}</span>`).join("")}</div>
       <div class="recipe-parts-detail">${partsHtml}</div>
-      <section class="detail-links"><h3>Nährwertangaben</h3><table class="nutrition-table"><caption>Angaben für ${escapeHtml(nutritionBasis)}${recipe.nutritionCalculation ? ` · berechnet aus ${recipe.nutritionCalculation.totalWeightGrams} g Zutaten` : ""}</caption><tbody>${nutritionRows}</tbody></table>${hasNutritionValues(nutrition) ? '<p class="nutrition-note">Näherungswerte auf Grundlage der hinterlegten Zutatenmengen.</p>' : '<p class="empty-detail-info">Für dieses Rezept wurden noch keine Nährwerte berechnet.</p>'}</section>
-      ${products.length ? `<section class="detail-links"><h3>Gescannte Produkte</h3><div class="product-detail-list">${products.map(product => `<article class="product-detail"><strong>${escapeHtml(product.name)} · EAN ${escapeHtml(product.barcode)}</strong>${product.ingredientText ? `<p><b>Zutaten:</b> ${escapeHtml(product.ingredientText)}</p>` : ""}</article>`).join("")}</div><p class="nutrition-note">Produktdaten: Open Food Facts</p></section>` : ""}
+      <section class="detail-links"><h3>Nährwertangaben</h3><table class="nutrition-table"><caption>Angaben für ${escapeHtml(nutritionBasis)} · feste Bezugswerte</caption><tbody>${nutritionRows}</tbody></table>${needsNutritionReview(recipe) ? '<p class="review-notice">Bitte prüfen: Herkunft der bisherigen Nährwerte nicht bestätigt. Im Rezeptformular manuell bestätigen.</p>' : ""}${!hasNutritionValues(nutrition) ? '<p class="empty-detail-info">Keine Nährwerte eingetragen.</p>' : ""}</section>
       <section class="detail-links"><h3>Links</h3>${links.length ? `<div class="link-list">${links.map((url, index) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${url.includes("instagram.com") ? "Instagram" : `Webseite ${index + 1}`} ↗</a>`).join("")}</div>` : '<p class="empty-detail-info">Für dieses Rezept wurden noch keine Links hinterlegt.</p>'}</section>
     </div>`;
+  configureFavoriteButton(detail.querySelector('[data-action="favorite"]'), recipe);
   detail.querySelector(".detail-close").addEventListener("click", () => detailModal.close());
   detail.querySelector('[data-action="copy"]').addEventListener("click", event => duplicateRecipe(recipe, event.currentTarget));
   detail.querySelector('[data-action="edit"]').addEventListener("click", () => { detailModal.close(); openForm(recipe, detailRecipeVersion); });
@@ -1098,30 +992,7 @@ function openDetail(id) {
       label.textContent = ingredientLabel(ingredient, factor);
     });
   });
-  detail.querySelectorAll(".shopping-check").forEach(checkbox => checkbox.addEventListener("change", async event => {
-    if (!ensureCanEdit()) {
-      event.target.checked = !event.target.checked;
-      return;
-    }
-    const ingredient = recipe.ingredients[Number(event.target.dataset.index)];
-    const previousChecked = ingredient.checked;
-    ingredient.checked = event.target.checked;
-    event.target.closest(".shopping-item").classList.toggle("checked", event.target.checked);
-    try {
-      await saveRecipeToCloud(recipe, { expectedVersion: detailRecipeVersion });
-      detailRecipeVersion = recipeVersions.get(recipe.id) || detailRecipeVersion;
-    } catch (error) {
-      ingredient.checked = previousChecked;
-      event.target.checked = previousChecked;
-      event.target.closest(".shopping-item").classList.toggle("checked", previousChecked);
-      alert(error.message);
-      if (error.message.includes("inzwischen")) {
-        detailModal.close();
-        await refreshRecipesFromCloud();
-      }
-    }
-  }));
-  detailModal.showModal();
+  if (!detailModal.open) detailModal.showModal();
 }
 
 async function deleteRecipe(recipe, expectedVersion = null) {
@@ -1172,6 +1043,7 @@ recipeForm.addEventListener("submit", async event => {
   }
   const id = document.querySelector("#recipeId").value;
   const recipe = {
+    ...editingRecipeSnapshot,
     id: id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
     title: document.querySelector("#titleInput").value.trim(),
     category: document.querySelector("#categoryInput").value,
@@ -1180,13 +1052,18 @@ recipeForm.addEventListener("submit", async event => {
       : Number(document.querySelector("#servingsInput").value),
     image: formImage,
     ingredients,
-    instructions: components.map(component => `${component.name}:\n${component.instructions}`).join("\n\n"),
+    instructions: JSON.stringify(components) === JSON.stringify(editingRecipeSnapshot.components)
+      ? editingRecipeSnapshot.instructions
+      : components.map(component => `${component.name}:\n${component.instructions}`).join("\n\n"),
     components,
     links: document.querySelector("#linksInput").value.split("\n").map(item => item.trim()).filter(Boolean),
-    products: formProducts,
-    nutrition: getNutritionValues(),
+    nutrition: { ...editingRecipeSnapshot.nutrition, ...getNutritionValues() },
     nutritionBasis: getNutritionBasisFromForm(),
-    nutritionCalculation: formCalculation
+    nutritionVerified: document.querySelector("#nutritionConfirmedInput").checked,
+    tags: normalizeTags(formTags),
+    favorite: editingRecipeSnapshot.favorite === true,
+    difficulty: document.querySelector("#difficultyInput").value,
+    ...Object.fromEntries(["prepMinutes", "cookMinutes", "restMinutes", "finishedWeightGrams"].map(field => [field, optionalNumber(document.querySelector(`#${field}Input`).value)]))
   };
   try {
     await saveRecipeToCloud(recipe, { expectedVersion: editingRecipeVersion, isNew: !id });
@@ -1210,11 +1087,12 @@ document.querySelectorAll("#newRecipeButton, #heroNewRecipeButton, #emptyNewReci
 document.querySelectorAll("#closeModalButton, #cancelButton").forEach(button => button.addEventListener("click", closeForm));
 document.querySelector("#closeAuthButton").addEventListener("click", closeAuth);
 document.querySelector("#authButton").addEventListener("click", async () => {
+  if (!supabaseClient) return;
   if (!currentUser) {
     openAuth();
     return;
   }
-  await supabaseClient.auth.signOut();
+  if (supabaseClient) await supabaseClient.auth.signOut();
   currentUser = null;
   updateAuthInterface();
   setStorageStatus("cloud", "Zentrale Sammlung · zum Bearbeiten anmelden");
@@ -1241,17 +1119,7 @@ document.querySelector("#authForm").addEventListener("submit", async event => {
   normalizeAllRecipes();
   render();
 });
-document.querySelector("#lookupBarcodeButton").addEventListener("click", lookupBarcode);
-document.querySelector("#barcodeInput").addEventListener("keydown", event => {
-  if (event.key === "Enter") { event.preventDefault(); lookupBarcode(); }
-});
-document.querySelector("#scanBarcodeButton").addEventListener("click", startBarcodeScanner);
-document.querySelector("#stopScannerButton").addEventListener("click", stopBarcodeScanner);
 document.querySelector("#addComponentButton").addEventListener("click", addComponent);
-document.querySelector("#calculateNutritionButton").addEventListener("click", calculateRecipeNutrition);
-document.querySelector("#nutritionBasisUnitInput").addEventListener("change", event => {
-  document.querySelector("#nutritionBasisAmountInput").value = event.target.value === "servings" ? 1 : 100;
-});
 document.querySelector("#imageFileInput").addEventListener("change", event => {
   const file = event.target.files[0];
   if (!file) return;
@@ -1296,6 +1164,22 @@ document.querySelectorAll(".category-tab").forEach(tab => tab.addEventListener("
 }));
 
 async function initialize() {
+  if (["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) {
+    try {
+      const response = await fetch("/api/recipes", { cache: "no-store" });
+      const localRecipes = response.ok ? await response.json() : null;
+      if (Array.isArray(localRecipes)) {
+        supabaseClient = null;
+        recipes = localRecipes;
+        setStorageStatus("file", "Sicher im Programmordner gespeichert");
+        document.querySelector("#authButton").hidden = true;
+        document.querySelector("#authUser").textContent = "Lokale Sammlung";
+        normalizeAllRecipes();
+        render();
+        return;
+      }
+    } catch { /* Statische Vorschau verwendet den bisherigen Cloud-Speicher. */ }
+  }
   if (supabaseClient) {
     const { data } = await supabaseClient.auth.getSession();
     currentUser = data.session?.user || null;

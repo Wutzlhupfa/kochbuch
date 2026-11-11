@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=20260810-10" />
+    <link rel="stylesheet" href="styles.css?v=20261111-1" />
   </head>
   <body>
     <div class="page-shell">
@@ -72,6 +72,13 @@
             <button class="category-tab" data-category="Nachspeise" type="button">Nachspeisen <span id="countDessert">0</span></button>
           </div>
 
+          <div class="collection-filters">
+            <details class="tag-filter"><summary>Tags auswählen (alle müssen zutreffen)</summary><div id="tagFilterChoices" class="tag-chips"></div></details>
+            <label>Max. Gesamtdauer (Min.)<input id="maxDurationInput" type="number" min="0" step="1" placeholder="Beliebig" /></label>
+            <label>Schwierigkeitsgrad<select id="difficultyFilter"><option value="">Alle</option><option>Einfach</option><option>Mittel</option><option>Anspruchsvoll</option></select></label>
+            <label class="checkbox-label"><input id="favoritesFilter" type="checkbox" /> Nur Favoriten</label>
+            <button class="secondary-button compact-button" id="resetFiltersButton" type="button">Filter zurücksetzen</button>
+          </div>
           <div class="recipe-grid" id="recipeGrid"></div>
 
           <div class="empty-state" id="emptyState" hidden>
@@ -123,9 +130,6 @@
               <option value="Nachspeise">Nachspeise</option>
             </select>
           </label>
-          <label>Grundportionen <span class="optional">für die Mengenberechnung</span>
-            <input id="servingsInput" type="number" min="0.5" max="1000" step="0.5" placeholder="z. B. 4" />
-          </label>
           <label>Rezeptbild <span class="optional">optional · max. 8 MB</span>
             <input id="imageFileInput" class="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
           </label>
@@ -133,6 +137,24 @@
             <img id="imagePreview" alt="Vorschau des Rezeptbildes" />
             <button id="removeImageButton" type="button" aria-label="Rezeptbild entfernen">×</button>
           </div>
+          <section class="recipe-information-editor full-width" aria-labelledby="recipeInformationHeading">
+            <h3 id="recipeInformationHeading">Rezeptinformationen</h3>
+            <div class="form-grid">
+          <label>Grundportionen <span class="optional">für die Mengenberechnung</span>
+            <input id="servingsInput" type="number" min="0" step="any" placeholder="z. B. 4" />
+          </label>
+<label>Vorbereitungszeit <span class="optional">optional · Minuten</span><input id="prepMinutesInput" type="number" min="0" step="1" /></label>
+<label>Koch-/Backzeit <span class="optional">optional · Minuten</span><input id="cookMinutesInput" type="number" min="0" step="1" /></label>
+<label>Ruhe-/Gehzeit <span class="optional">optional · Minuten</span><input id="restMinutesInput" type="number" min="0" step="1" /></label>
+<label>Fertiges Gesamtgewicht <span class="optional">optional · Gramm des fertigen Gerichts</span><input id="finishedWeightGramsInput" type="number" min="0" step="0.1" /></label>
+<label>Schwierigkeitsgrad<select id="difficultyInput"><option value="">Keine Angabe</option><option>Einfach</option><option>Mittel</option><option>Anspruchsvoll</option></select></label>
+            </div>
+          </section>
+          <section class="tags-editor full-width" aria-labelledby="tagsHeading">
+            <h3 id="tagsHeading">Tags</h3>
+            <div class="tag-entry"><label>Vorhandenen Tag wählen oder neuen eingeben<input id="tagInput" type="text" list="tagSuggestions" placeholder="z. B. High Protein" /></label><button id="addTagButton" class="secondary-button compact-button" type="button">Tag hinzufügen</button></div>
+            <datalist id="tagSuggestions"></datalist><div class="tag-chips" id="formTags"></div>
+          </section>
           <section class="component-editor full-width" aria-labelledby="componentsHeading">
             <div class="form-section-heading">
               <div>
@@ -146,61 +168,38 @@
           <section class="ingredient-editor full-width" aria-labelledby="ingredientsHeading">
             <div class="form-section-heading">
               <div>
-                <h3 id="ingredientsHeading">Zutaten &amp; Einkaufsliste</h3>
+                <h3 id="ingredientsHeading">Zutaten</h3>
                 <p>Die Zutaten werden passend zu Teig, Füllung oder anderen Rezeptteilen getrennt dargestellt.</p>
               </div>
             </div>
             <div class="ingredient-list-editor" id="ingredientRows"></div>
-            <p class="ingredient-editor-note">Alle Zutatenpositionen sind optional. Leere Positionen werden beim Speichern ausgelassen. Für eine Nährwertberechnung bei Stück, EL, TL und Prise bitte zusätzlich das verwendete Gewicht eintragen.</p>
-          </section>
-          <section class="barcode-panel full-width" aria-labelledby="barcodeHeading">
-            <div class="form-section-heading">
-              <div>
-                <h3 id="barcodeHeading">Produkt per Barcode hinzufügen</h3>
-                <p>EAN eingeben oder mit der Kamera scannen. Produktangaben werden von Open Food Facts geladen.</p>
-              </div>
-            </div>
-            <div class="barcode-controls">
-              <label class="barcode-label">EAN / Barcode
-                <input id="barcodeInput" type="text" inputmode="numeric" autocomplete="off" placeholder="z. B. 3017620422003" pattern="[0-9]{8,14}" />
-              </label>
-              <button class="secondary-button compact-button" id="lookupBarcodeButton" type="button">Produkt suchen</button>
-              <button class="secondary-button compact-button" id="scanBarcodeButton" type="button">▣ Kamera öffnen</button>
-            </div>
-            <p class="barcode-status" id="barcodeStatus" aria-live="polite"></p>
-            <div class="scanner-view" id="scannerView" hidden>
-              <video id="scannerVideo" playsinline muted></video>
-              <div class="scan-guide" aria-hidden="true"></div>
-              <button class="scanner-stop" id="stopScannerButton" type="button">Kamera schließen</button>
-            </div>
-            <div class="scanned-products" id="scannedProducts"></div>
+            <p class="ingredient-editor-note">Alle Zutatenpositionen sind optional. Leere Positionen werden beim Speichern ausgelassen.</p>
           </section>
           <section class="nutrition-panel full-width" aria-labelledby="nutritionHeading">
             <div class="form-section-heading">
               <div>
                 <h3 id="nutritionHeading">Nährwertangaben</h3>
-                <p>Lege fest, für welche Menge die eingetragenen oder berechneten Werte gelten.</p>
+                <p>Lege fest, für welche Menge die manuell eingetragenen Werte gelten.</p>
               </div>
-              <button class="primary-button compact-button calculate-button" id="calculateNutritionButton" type="button">Nährwerte berechnen</button>
             </div>
             <div class="nutrition-basis">
               <span>Die folgenden Werte gelten für</span>
-              <label><span class="sr-only">Bezugsmenge</span><input id="nutritionBasisAmountInput" type="number" min="0.01" max="100000" step="0.01" value="100" /></label>
-              <label><span class="sr-only">Einheit der Bezugsmenge</span><select id="nutritionBasisUnitInput"><option value="grams">Gramm</option><option value="servings">Portionen</option></select></label>
+              <label><span class="sr-only">Bezugsmenge</span><select id="nutritionBasisInput"><option value='{"unit":"grams","amount":100}'>100 g</option><option value='{"unit":"servings","amount":1}'>1 Portion</option></select></label>
             </div>
-            <div class="calculation-summary" id="calculationSummary">Noch nicht berechnet.</div>
+            <p class="review-notice" id="nutritionReviewNotice" hidden>Bitte prüfen: Die Herkunft dieser bisherigen Nährwerte ist nicht bestätigt.</p>
+            <label class="checkbox-label"><input id="nutritionConfirmedInput" type="checkbox" /> Ich habe die Nährwerte und ihre Bezugsmenge manuell geprüft.</label>
             <div class="nutrition-grid">
-              <label>Energie <span>kJ</span><input id="energyKjInput" type="number" min="0" step="0.1" placeholder="0" /></label>
-              <label>Kalorien <span>kcal</span><input id="energyKcalInput" type="number" min="0" step="0.1" placeholder="0" /></label>
-              <label>Fett <span>g</span><input id="fatInput" type="number" min="0" step="0.01" placeholder="0" /></label>
-              <label>davon gesättigte Fettsäuren <span>g</span><input id="saturatesInput" type="number" min="0" step="0.01" placeholder="0" /></label>
-              <label>Kohlenhydrate <span>g</span><input id="carbsInput" type="number" min="0" step="0.01" placeholder="0" /></label>
-              <label>davon Zucker <span>g</span><input id="sugarsInput" type="number" min="0" step="0.01" placeholder="0" /></label>
-              <label>Eiweiß <span>g</span><input id="proteinInput" type="number" min="0" step="0.01" placeholder="0" /></label>
-              <label>Salz <span>g</span><input id="saltInput" type="number" min="0" step="0.01" placeholder="0" /></label>
-              <label>Ballaststoffe <span>g</span><input id="fiberInput" type="number" min="0" step="0.01" placeholder="0" /></label>
+              <label>Energie <span>kJ</span><input id="energyKjInput" type="number" min="0" step="any" placeholder="optional" /></label>
+              <label>Kalorien <span>kcal</span><input id="energyKcalInput" type="number" min="0" step="any" placeholder="optional" /></label>
+              <label>Fett <span>g</span><input id="fatInput" type="number" min="0" step="any" placeholder="optional" /></label>
+              <label>davon gesättigte Fettsäuren <span>g</span><input id="saturatesInput" type="number" min="0" step="any" placeholder="optional" /></label>
+              <label>Kohlenhydrate <span>g</span><input id="carbsInput" type="number" min="0" step="any" placeholder="optional" /></label>
+              <label>davon Zucker <span>g</span><input id="sugarsInput" type="number" min="0" step="any" placeholder="optional" /></label>
+              <label>Eiweiß <span>g</span><input id="proteinInput" type="number" min="0" step="any" placeholder="optional" /></label>
+              <label>Salz <span>g</span><input id="saltInput" type="number" min="0" step="any" placeholder="optional" /></label>
+              <label>Ballaststoffe <span>g</span><input id="fiberInput" type="number" min="0" step="any" placeholder="optional" /></label>
             </div>
-            <p class="nutrition-note">Die Werte sind Näherungen aus durchschnittlichen Produktdaten und können manuell korrigiert werden. Gewichtsverlust oder Wasseraufnahme beim Kochen werden nicht automatisch berücksichtigt.</p>
+            <p class="nutrition-note">Alle Werte sind optional und werden manuell übertragen, beispielsweise aus Yazio. Die Bezugswerte bleiben bei einer Portionsanpassung unverändert.</p>
           </section>
           <label class="full-width">Links <span class="hint">Instagram, Blog oder andere Webseite – eine URL pro Zeile</span>
             <textarea id="linksInput" rows="3" placeholder="https://instagram.com/…&#10;https://beispiel.de/rezept"></textarea>
@@ -241,6 +240,7 @@
 
     <template id="recipeCardTemplate">
       <article class="recipe-card">
+        <button class="favorite-button card-favorite" type="button" aria-label="Als Favorit markieren">♡</button>
         <button class="card-open" type="button">
           <div class="card-image">
             <img alt="" />
@@ -248,6 +248,7 @@
           </div>
           <div class="card-body">
             <h3></h3>
+            <p class="card-meta"></p>
             <span class="view-recipe">Rezept ansehen <span aria-hidden="true">→</span></span>
           </div>
         </button>
@@ -255,6 +256,6 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=20260810-10"></script>
+    <script src="app.js?v=20261111-1"></script>
   </body>
 </html>
