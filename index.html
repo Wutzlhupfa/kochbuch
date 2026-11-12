@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=20261112-3" />
+    <link rel="stylesheet" href="styles.css?v=20261112-public" />
   </head>
   <body>
     <div class="page-shell">
@@ -18,8 +18,6 @@
           <span>Küchenbuch</span>
         </a>
         <div class="header-actions">
-          <span class="auth-user" id="authUser">Nicht angemeldet</span>
-          <button class="secondary-button header-auth-button" id="authButton" type="button">Anmelden</button>
           <button class="primary-button header-button" id="newRecipeButton" type="button">
             <span aria-hidden="true">＋</span> Neues Rezept
           </button>
@@ -224,27 +222,6 @@
       <article id="recipeDetail"></article>
     </dialog>
 
-    <dialog class="modal auth-modal" id="authModal">
-      <form class="auth-form" id="authForm">
-        <div class="modal-header">
-          <div>
-            <p class="eyebrow">Geschützter Bereich</p>
-            <h2>Anmelden</h2>
-          </div>
-          <button class="icon-button" id="closeAuthButton" type="button" aria-label="Fenster schließen">×</button>
-        </div>
-        <p class="auth-copy">Melde dich mit dem Benutzerkonto aus Supabase an, um Rezepte und Bilder zentral zu speichern.</p>
-        <label>E-Mail-Adresse
-          <input id="authEmail" type="email" autocomplete="username" required />
-        </label>
-        <label>Passwort
-          <input id="authPassword" type="password" autocomplete="current-password" required />
-        </label>
-        <p class="auth-error" id="authError" role="alert"></p>
-        <button class="primary-button" type="submit">Anmelden</button>
-      </form>
-    </dialog>
-
     <dialog class="modal" id="restoreModal" aria-labelledby="restoreHeading">
       <div class="recipe-form">
         <div class="modal-header"><div><p class="eyebrow">Deine Datensicherung</p><h2 id="restoreHeading">Datensicherung wiederherstellen</h2></div><button class="icon-button" id="restoreClose" type="button" aria-label="Fenster schließen">×</button></div>
@@ -284,9 +261,9 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="vendor/fflate-0.8.2.min.js"></script>
-    <script src="app.js?v=20261112-3"></script>
-    <script src="drafts.js?v=20261112-3"></script>
-    <script src="backup.js?v=20261112-3"></script>
-    <script src="backup-ui.js?v=20261112-3"></script>
+    <script src="app.js?v=20261112-public"></script>
+    <script src="drafts.js?v=20261112-public"></script>
+    <script src="backup.js?v=20261112-public"></script>
+    <script src="backup-ui.js?v=20261112-public"></script>
   </body>
 </html>

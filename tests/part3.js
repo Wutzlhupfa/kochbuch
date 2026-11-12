@@ -75,28 +75,25 @@
     input('#titleInput','Tab A noch neuer');let draftConflict=false;try{await RecipeDrafts.flush();}catch{draftConflict=true;}
     assert(draftConflict && (await RecipeDrafts.read(newKey)).data.fields.titleInput==='Tab B','Ein Entwurf aus anderem Tab wird nicht still überschrieben');
     finishCloseForm();openForm();await RecipeDrafts.ready();await RecipeDrafts.discard();closeForm();
-    // Test public UI and auth error/success paths with an isolated client stub.
+    // Public editor and cloud draft checks without an authentication API.
     const version='2026-01-01T00:00:00Z';let cloudRecipe=clone(remote);
-    const cloud={auth:{getUser:async()=>({data:{user:currentUser}}),signInWithPassword:async()=>{throw new Error('Test-Netzwerkfehler');},signOut:async()=>({error:null})},from:()=>({select:()=>({order:()=>({range:async()=>({data:[{id:cloudRecipe.id,data:cloudRecipe,updated_at:version}],error:null})}),eq:async()=>({data:[{id:cloudRecipe.id,data:cloudRecipe,updated_at:version}],error:null})})})};
-    supabaseClient=cloud;currentUser=null;storageMode='cloud';
-    openForm();assert(document.querySelector('#authModal').open && !recipeModal.open,'Öffentliches Lesen bleibt möglich, Editor verlangt Cloud-Anmeldung');closeAuth();
+    const cloud={from:()=>({select:()=>({order:()=>({range:async()=>({data:[{id:cloudRecipe.id,data:cloudRecipe,updated_at:version}],error:null})}),eq:async()=>({data:[{id:cloudRecipe.id,data:cloudRecipe,updated_at:version}],error:null})})})};
+    supabaseClient=cloud;storageMode='cloud';
+    await loadRecipes();normalizeAllRecipes();render();
+    assert(!document.querySelector('#authModal,#authButton,#authForm,#authPassword'),'Anmeldeoberfläche vollständig entfernt');
+    assert(recipes[0].title==='Neuerer Stand','Öffentliche Cloud-Sammlung lädt ohne Authentifizierungs-API');
     openDetail(remote.id);assert(detailModal.open,'Rezeptdetails ohne Anmeldung lesbar');detailModal.close();
-    await deleteRecipe(remote);assert(alerts.length>0 && document.querySelector('#authModal').open,'Löschen ohne Anmeldung wird im Frontend abgewehrt');closeAuth();
-    document.querySelector('#authForm').dispatchEvent(new Event('submit',{cancelable:true}));await wait(30);
-    assert(document.querySelector('#authError').textContent==='Test-Netzwerkfehler' && !document.querySelector('#authForm [type=submit]').disabled,'Anmeldefehler wird angezeigt und blockiert keine weiteren Versuche');
-    cloud.auth.signInWithPassword=async()=>({data:{user:{id:'user-a',email:'test@example.invalid'}},error:null});
-    document.querySelector('#authForm').dispatchEvent(new Event('submit',{cancelable:true}));await until(()=>currentUser?.id==='user-a');await wait(30);
-    assert(recipes[0].title==='Neuerer Stand' && currentUser.id==='user-a','Anmeldung mit simuliertem Supabase lädt zentrale Rezepte');
-    normalizeAllRecipes();openForm(recipes[0]);await RecipeDrafts.ready();input('#titleInput','Benutzer A Entwurf');await RecipeDrafts.flush();const userAKey=RecipeDrafts.keyFor(remote.id);await closeForm();
-    currentUser={id:'user-b'};openForm(recipes[0]);await RecipeDrafts.ready();assert(document.querySelector('#draftPrompt').hidden && RecipeDrafts.keyFor(remote.id)!==userAKey,'Cloud-Entwürfe sind nach Benutzer getrennt');closeForm();
-    currentUser={id:'user-a'};openForm(recipes[0]);await RecipeDrafts.ready();cloudRecipe={...cloudRecipe,title:'Cloud inzwischen geändert'};
+    openForm(recipes[0]);await RecipeDrafts.ready();assert(recipeModal.open,'Öffentlicher Editor öffnet ohne Anmeldung');
+    input('#titleInput','Öffentlicher Cloud-Entwurf');await RecipeDrafts.flush();const publicKey=RecipeDrafts.keyFor(remote.id);await closeForm();
+    assert(publicKey.includes(':public:edit:') && !publicKey.includes(':user:'),'Öffentliche Entwürfe sind nur lokal nach Rezept und Speicher getrennt');
+    openForm(recipes[0]);await RecipeDrafts.ready();cloudRecipe={...cloudRecipe,title:'Cloud inzwischen geändert'};
     const oldRead=cloud.from;
     cloud.from=()=>({select:()=>({eq:async()=>({data:[{id:remote.id,data:cloudRecipe,updated_at:'2026-02-01T00:00:00Z'}],error:null})})});
-    await RecipeDrafts.restore();assert(RecipeDrafts.hasConflict(),'Veralteter Cloud-Entwurf erkennt aktuellere Serverversion vor dem Speichern');
+    await RecipeDrafts.restore();assert(RecipeDrafts.hasConflict(),'Veralteter öffentlicher Cloud-Entwurf erkennt aktuellere Serverversion');
     await closeForm();cloud.from=oldRead;openForm(recipes[0]);await RecipeDrafts.ready();await RecipeDrafts.discard();closeForm();
     // Missing update version is never allowed to produce an unguarded cloud write.
     let rejected=false;try{await saveRecipeToCloud(remote);}catch{rejected=true;}assert(rejected,'Cloud-Update ohne bekannte Version wird sicher abgewiesen');
-    supabaseClient=null;storageMode='file';currentUser=null;await initialize();
+    supabaseClient=null;storageMode='file';await initialize();
     const long={...clone(fixtures[0]),title:'Smartphone-Rezept mit langem Namen und ausführlicher Beschreibung',tags:['High Protein','SehrLangerTagOhneLeerzeichen'.repeat(4)],prepMinutes:10,cookMinutes:20,restMinutes:0,difficulty:'Einfach',servings:3.5,finishedWeightGrams:850,nutrition:{energyKcal:123.45,protein:22,salt:0},nutritionBasis:{unit:'servings',amount:1},nutritionVerified:true};
     long.components[0].name='LangerRezeptteilName'.repeat(5);long.components[0].instructions='Ausführliche Anleitung. '.repeat(100)+'\n'+('LangOhneLeerzeichen'.repeat(12));
     await originalFetch('/api/recipes',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify([long])});await initialize();

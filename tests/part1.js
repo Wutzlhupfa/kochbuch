@@ -73,11 +73,11 @@
     sortMode='title_desc'; render(); assert(recipeGrid.firstElementChild.dataset.id === [...recipes].sort((a,b)=>b.title.localeCompare(a.title,'de',{sensitivity:'base'}))[0].id, 'Sortierung Z–A');
     sortMode='title_asc'; render(); assert(recipeGrid.firstElementChild.dataset.id === [...recipes].sort((a,b)=>a.title.localeCompare(b.title,'de',{sensitivity:'base'}))[0].id, 'Sortierung A–Z');
     await deleteRecipe(recipes.find(r=>r.id!==item.id)); assert(recipes.length===1, 'Rezept löschen');
-    currentUser=null; storageMode='published';
+    storageMode='error';
     const before = JSON.stringify(recipes); document.querySelector('.card-favorite').click();
-    assert(document.querySelector('#authModal').open && JSON.stringify(recipes)===before, 'Besucher dürfen Favoriten nicht ändern');
+    assert(!document.querySelector('#authModal') && JSON.stringify(recipes)===before, 'Nicht erreichbarer Speicher verändert keine Favoriten und öffnet keine Anmeldung');
     assert(!document.querySelector('#barcodeInput, #calculateNutritionButton, .shopping-check, .ingredient-weight-input'), 'Entfernte Funktionen fehlen im DOM');
-    document.querySelector('#authModal').close(); storageMode='file';
+    storageMode='file';
     const fixtures = await (await fetch('/legacy-fixtures.json')).json();
     recipes = JSON.parse(JSON.stringify(fixtures)); normalizeAllRecipes();
     for (const fixture of fixtures) {
@@ -87,9 +87,9 @@
       fixture.ingredients.forEach((ingredient, i) => { if (typeof ingredient === 'object') Object.keys(ingredient).forEach(key => { if (JSON.stringify(saved.ingredients[i][key]) !== JSON.stringify(ingredient[key])) throw new Error(`Zutat verändert: ${fixture.title} ${key}`); }); });
     }
     const cloudRows = [];
-    currentUser={id:'test-user'}; storageMode='cloud';
+    storageMode='cloud';
     let cloudError=null, cloudEmpty=false;
-    supabaseClient={auth:{getUser:async()=>({data:{user:currentUser}})},from:()=>({
+    supabaseClient={from:()=>({
       insert:row=>({select:async()=>{cloudRows.push(row);return {data:[{updated_at:'test-version'}]};}}),
       update:row=>{ const query={eq:()=>query,select:async()=>{cloudRows.push(row);return {error:cloudError,data:cloudEmpty?[]:[{updated_at:'test-version-2'}]};}};return query;},
       delete:()=>{const query={eq:()=>query,select:async()=>({data:[{id:'test'}]})};return query;}

@@ -24,3 +24,11 @@ FROM storage.buckets WHERE id = 'recipe-images';
 -- Relevant für den vorhandenen updated_at-Konfliktschutz und die Import-Rücknahme.
 SELECT tgname AS trigger_name, pg_get_triggerdef(oid) AS definition
 FROM pg_trigger WHERE tgrelid = 'public.recipes'::regclass AND NOT tgisinternal;
+
+-- Vor der ausdrücklich gewünschten Benutzerlöschung: Abhängigkeiten prüfen.
+-- ON DELETE CASCADE darf keine Rezepte oder Bilder mitlöschen.
+SELECT conrelid::regclass AS referencing_table, conname, pg_get_constraintdef(oid) AS definition
+FROM pg_constraint WHERE confrelid = 'auth.users'::regclass;
+SELECT count(*) AS auth_user_count FROM auth.users;
+SELECT count(*) AS recipe_count FROM public.recipes;
+SELECT count(*) AS image_count FROM storage.objects WHERE bucket_id = 'recipe-images';

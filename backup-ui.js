@@ -7,7 +7,6 @@ const backupClone = value => JSON.parse(JSON.stringify(value));
 function createBackupAdapter() {
   const cloud = supabaseClient;
   const local = !cloud && storageMode === 'file';
-  const writeUser = currentUser;
   return {
     async snapshot() {
       if (cloud) {
@@ -27,11 +26,9 @@ function createBackupAdapter() {
     },
     async upload(bytes,info) {
       if(cloud) {
-        if(!writeUser || currentUser?.id!==writeUser.id) throw new Error('Anmeldung für Bildimport erforderlich.');
-        await requireAuthenticatedCloudUser();
-        const path=`${writeUser.id}/restore-${crypto.randomUUID()}.${info.ext}`;
+        const path=`public/restore-${crypto.randomUUID()}.${info.ext}`;
         const {error}=await cloud.storage.from('recipe-images').upload(path,new Blob([bytes],{type:info.mime}),{contentType:info.mime,upsert:false});
-        if(error) throw new Error(`Bild-Upload fehlgeschlagen: ${error.message}`);
+        if(error) throw cloudWriteFailure(error, "Bild-Upload");
         return cloud.storage.from('recipe-images').getPublicUrl(path).data.publicUrl;
       }
       if(!local) throw new Error('Kein beschreibbarer Bildspeicher.');
@@ -41,7 +38,7 @@ function createBackupAdapter() {
       return data.path;
     },
     async commit(before,target) {
-      if(cloud) return commitBackupToCloud(cloud,writeUser,before,target);
+      if(cloud) return commitBackupToCloud(cloud,before,target);
       if(!local) throw new Error('Kein beschreibbarer Rezeptspeicher.');
       const response=await fetch('/api/recipes',{method:'PUT',headers:{'Content-Type':'application/json','If-Match':before.versions.file},body:JSON.stringify(target),signal:AbortSignal.timeout(30000)});
       if(!response.ok) throw new Error(response.status===409?'Datei wurde zwischenzeitlich geändert. Import abgebrochen, keine Rezeptdaten überschrieben.':'Lokaler Import fehlgeschlagen. Die Rezeptdatei wird atomar ersetzt; bitte neu laden und Sicherheitskopie aufbewahren.');
@@ -51,20 +48,19 @@ function createBackupAdapter() {
   };
 }
 
-async function commitBackupToCloud(cloud,user,before,target) {
-  if(!user || currentUser?.id!==user.id) throw new Error('Anmeldung ist nicht mehr gültig.');
-  await requireAuthenticatedCloudUser();
+async function commitBackupToCloud(cloud,before,target) {
   const oldRows=new Map(before.rows.map(row=>[row.id,row]));
   const targetIds=new Set(target.map(item=>item.id));
   const journal=[];
   let pending=null;
   async function perform(kind,old,data) {
-    const row=kind==='delete'?null:{id:data.id,data,updated_at:new Date().toISOString(),updated_by:user.id};
+    const row=kind==='delete'?null:{id:data.id,data,updated_at:new Date().toISOString()};
     const id=old?.id || data.id;
     pending={kind,old,row,id};
     let query=kind==='insert'?cloud.from('recipes').insert(row):kind==='update'?cloud.from('recipes').update(row).eq('id',id).eq('updated_at',old.updated_at):cloud.from('recipes').delete().eq('id',id).eq('updated_at',old.updated_at);
     const result=await query.select('id, data, updated_at, updated_by');
-    if(result.error || result.data?.length!==1) throw new Error(result.error?.message || `Versionskonflikt bei Rezept ${id}`);
+    if(result.error) throw cloudWriteFailure(result.error, 'Import');
+    if(result.data?.length!==1) await unconfirmedCloudWrite(id, old?.updated_at, 'Import');
     journal.push({...pending,saved:result.data[0]}); pending=null;
   }
   try {

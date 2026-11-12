@@ -23,6 +23,9 @@ def main(test_script="part1.js"):
         shutil.copytree(ROOT / 'vendor', folder / 'vendor')
         for asset in ['backup.js', 'backup-ui.js', 'drafts.js']:
             shutil.copyfile(ROOT / asset, folder / asset)
+        backup_check = os.environ.get('KOCHBUCH_BACKUP_CHECK')
+        if test_script == 'public-access.js' and backup_check:
+            shutil.copyfile(backup_check, folder / 'source-backup.zip')
         html = (ROOT / 'index.html').read_text()
         html = html.replace('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>', '')
         import re

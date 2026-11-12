@@ -1,10 +1,13 @@
 const STORAGE_KEY = "kuechenbuch-recipes-v1";
 const SUPABASE_URL = "https://ohdamaixedupjivfobsv.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_65F5g7J7EJ0LzAqxchLKCA_6j9K31yM";
-let supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+// No saved session is read or created: all website requests use the public key.
+try { localStorage.removeItem(`sb-${new URL(SUPABASE_URL).hostname.split(".")[0]}-auth-token`); } catch { /* Browser storage may be disabled. */ }
+let supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: "kochbuch-public-v1" }
+});
 let recipes = [];
 let storageMode = "checking";
-let currentUser = null;
 let recipeVersions = new Map();
 let editingRecipeVersion = null;
 let localRecipeEtag = null;
@@ -52,44 +55,9 @@ function setStorageStatus(mode, message) {
   status.classList.toggle("browser-storage", ["browser", "error", "published"].includes(mode));
 }
 
-function updateAuthInterface() {
-  const authButton = document.querySelector("#authButton");
-  const authUser = document.querySelector("#authUser");
-  authButton.textContent = currentUser ? "Abmelden" : "Anmelden";
-  authUser.textContent = currentUser?.email || "Nicht angemeldet";
-  if (recipeModal.open) RecipeDrafts.checkIdentity();
-}
-
-function openAuth() {
-  document.querySelector("#authError").textContent = "";
-  const modal = document.querySelector("#authModal");
-  if (!modal.open) modal.showModal();
-  setTimeout(() => document.querySelector("#authEmail").focus(), 50);
-}
-
-function closeAuth() {
-  document.querySelector("#authModal").close();
-}
-
 function ensureCanEdit() {
   if (backupBusy) return false;
-  if (currentUser || storageMode === "file") return true;
-  openAuth();
-  return false;
-}
-
-async function requireAuthenticatedCloudUser() {
-  if (!supabaseClient) return null;
-  const { data, error } = await supabaseClient.auth.getUser();
-  if (error || !data.user) {
-    currentUser = null;
-    updateAuthInterface();
-    openAuth();
-    throw new Error("Deine Anmeldung ist nicht mehr gültig. Bitte erneut anmelden und das Rezept danach noch einmal speichern.");
-  }
-  currentUser = data.user;
-  updateAuthInterface();
-  return data.user;
+  return !["checking", "error"].includes(storageMode) && Boolean(supabaseClient || storageMode === "file");
 }
 
 async function loadPublishedRecipes() {
@@ -117,7 +85,7 @@ async function loadRecipes() {
     try {
       const data = await fetchCloudRecipeRows();
       applyCloudRows(data);
-      setStorageStatus("cloud", currentUser ? "Zentral in Supabase gespeichert" : "Zentrale Sammlung · zum Bearbeiten anmelden");
+      setStorageStatus("cloud", "Öffentliche Sammlung · ohne Anmeldung bearbeiten");
       return;
     } catch (error) {
       console.error("Supabase konnte nicht geladen werden:", error);
@@ -139,19 +107,34 @@ function applyCloudRows(rows) {
   recipeVersions = new Map(rows.map(row => [row.id, row.updated_at]));
 }
 
+function cloudWriteFailure(error, operation) {
+  const blocked = error?.code === "42501" || /row.level.security|permission denied|not authorized/i.test(error?.message || "");
+  return new Error(blocked
+    ? `Supabase verweigert das öffentliche ${operation}. Die öffentlichen Schreibrechte sind noch nicht freigegeben. Der Vorgang wurde nicht als erfolgreich bestätigt.`
+    : `Cloud-${operation} fehlgeschlagen: ${error?.message || "Unbekannter Fehler"}`);
+}
+
+async function unconfirmedCloudWrite(id, version, operation) {
+  let unchanged = false;
+  try {
+    const result = await supabaseClient.from("recipes").select("updated_at").eq("id", id);
+    unchanged = !result.error && result.data?.some(row => row.updated_at === version);
+  } catch { /* No reliable readback: report an unconfirmed version conflict. */ }
+  if (unchanged) throw new Error(`Supabase hat das öffentliche ${operation} nicht zugelassen, obwohl der Rezeptstand unverändert ist. Bitte die öffentlichen Schreibrechte freigeben. Es wurde kein Erfolg angezeigt.`);
+  throw new Error(`Das Rezept wurde möglicherweise inzwischen verändert oder gelöscht. ${operation} wurde nicht bestätigt. Bitte die Sammlung neu laden.`);
+}
+
 async function saveRecipeToCloud(recipe, { expectedVersion = null, isNew = false } = {}) {
-  if (supabaseClient && currentUser) {
+  if (supabaseClient) {
     cloudWriteInProgress += 1;
     cloudRefreshEpoch += 1;
     try {
-      const authenticatedUser = await requireAuthenticatedCloudUser();
       if (!isNew && !expectedVersion) throw new Error("Der Versionsstand fehlt; das Rezept wurde möglicherweise inzwischen verändert. Bitte neu laden.");
       const timestamp = new Date().toISOString();
       const row = {
         id: recipe.id,
         data: recipe,
-        updated_at: timestamp,
-        updated_by: authenticatedUser.id
+        updated_at: timestamp
       };
       let result;
       if (isNew) {
@@ -161,9 +144,9 @@ async function saveRecipeToCloud(recipe, { expectedVersion = null, isNew = false
         if (expectedVersion) query = query.eq("updated_at", expectedVersion);
         result = await query.select("updated_at");
       }
-      if (result.error) throw new Error(`Cloud-Speichern fehlgeschlagen: ${result.error.message}`);
+      if (result.error) throw cloudWriteFailure(result.error, "Speichern");
       if (!result.data?.length) {
-        throw new Error("Dieses Rezept wurde inzwischen auf einem anderen Gerät verändert. Die neue Version wurde geladen; bitte deine Änderung erneut eingeben.");
+        await unconfirmedCloudWrite(recipe.id, expectedVersion, "Speichern");
       }
       recipeVersions.set(recipe.id, result.data[0].updated_at);
       localStorage.removeItem(STORAGE_KEY);
@@ -174,29 +157,23 @@ async function saveRecipeToCloud(recipe, { expectedVersion = null, isNew = false
     }
   }
 
-  if (supabaseClient && !currentUser) {
-    openAuth();
-    throw new Error("Bitte zuerst anmelden. Das Rezept wurde noch nicht gespeichert.");
-  }
-
   return saveRecipesToLocalServer(recipes.some(item => item.id === recipe.id)
     ? recipes.map(item => item.id === recipe.id ? recipe : item) : [recipe, ...recipes]);
 }
 
 async function deleteRecipeFromCloud(recipe) {
-  if (supabaseClient && currentUser) {
+  if (supabaseClient) {
     cloudWriteInProgress += 1;
     cloudRefreshEpoch += 1;
     try {
-      await requireAuthenticatedCloudUser();
       if (!recipeVersions.get(recipe.id)) throw new Error("Der Versionsstand fehlt; das Rezept wurde möglicherweise inzwischen verändert. Bitte neu laden.");
       let query = supabaseClient.from("recipes").delete().eq("id", recipe.id);
       const expectedVersion = recipeVersions.get(recipe.id);
       if (expectedVersion) query = query.eq("updated_at", expectedVersion);
       const { data, error } = await query.select("id");
-      if (error) throw new Error(`Cloud-Löschen fehlgeschlagen: ${error.message}`);
+      if (error) throw cloudWriteFailure(error, "Löschen");
       if (!data?.length) {
-        throw new Error("Dieses Rezept wurde inzwischen auf einem anderen Gerät verändert und deshalb nicht gelöscht. Bitte die Seite neu laden.");
+        await unconfirmedCloudWrite(recipe.id, expectedVersion, "Löschen");
       }
       recipeVersions.delete(recipe.id);
       setStorageStatus("cloud", "Rezept zentral gelöscht");
@@ -205,12 +182,12 @@ async function deleteRecipeFromCloud(recipe) {
       cloudWriteInProgress -= 1;
     }
   }
-  if (!ensureCanEdit()) throw new Error("Bitte zuerst anmelden.");
+  if (!ensureCanEdit()) throw new Error("Der Rezeptspeicher ist momentan nicht erreichbar.");
   return saveRecipesToLocalServer(recipes.filter(item => item.id !== recipe.id));
 }
 
 async function saveRecipesToLocalServer(items) {
-  if (storageMode !== "file") throw new Error("Kein beschreibbarer Speicher verfügbar. Bitte anmelden oder server.py starten.");
+  if (storageMode !== "file") throw new Error("Kein beschreibbarer Speicher verfügbar. Bitte Verbindung prüfen oder server.py starten.");
   const response = await fetch("/api/recipes", {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...(localRecipeEtag ? { "If-Match": localRecipeEtag } : {}) },
@@ -233,9 +210,7 @@ async function refreshRecipesFromCloud({ updateStatus = true } = {}) {
   normalizeAllRecipes();
   render();
   if (updateStatus) {
-    setStorageStatus("cloud", currentUser
-      ? "Zentral synchronisiert"
-      : "Zentrale Sammlung · zum Bearbeiten anmelden");
+    setStorageStatus("cloud", "Öffentliche Sammlung · zentral synchronisiert");
   }
   return true;
 }
@@ -286,15 +261,13 @@ async function uploadPendingImage() {
   if (!pendingImageFile) return formImage;
   const imageInfo = await KochbuchBackup.imageInfo(new Uint8Array(await pendingImageFile.arrayBuffer()));
   if (supabaseClient) {
-    if (!currentUser) throw new Error("Bitte zuerst anmelden, um Bilder hochzuladen.");
-    await requireAuthenticatedCloudUser();
     const extension = imageInfo.ext;
     const uniqueId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
-    const filename = `${currentUser.id}/recipe-${uniqueId}.${extension}`;
+    const filename = `public/recipe-${uniqueId}.${extension}`;
     const { error } = await supabaseClient.storage
       .from("recipe-images")
       .upload(filename, pendingImageFile, { contentType: imageInfo.mime, upsert: false });
-    if (error) throw new Error(`Bild konnte nicht hochgeladen werden: ${error.message}`);
+    if (error) throw cloudWriteFailure(error, "Bild-Upload");
     const { data } = supabaseClient.storage.from("recipe-images").getPublicUrl(filename);
     formImage = data.publicUrl;
     pendingImageFile = null;
@@ -1098,37 +1071,6 @@ recipeForm.addEventListener("submit", async event => {
 
 document.querySelectorAll("#newRecipeButton, #heroNewRecipeButton, #emptyNewRecipeButton").forEach(button => button.addEventListener("click", () => openForm()));
 document.querySelectorAll("#closeModalButton, #cancelButton").forEach(button => button.addEventListener("click", closeForm));
-document.querySelector("#closeAuthButton").addEventListener("click", closeAuth);
-document.querySelector("#authButton").addEventListener("click", async () => {
-  if (!supabaseClient) return;
-  if (!currentUser) {
-    openAuth();
-    return;
-  }
-  try { const { error } = await supabaseClient.auth.signOut(); if (error) throw error; }
-  catch (error) { alert(error.message || "Abmelden fehlgeschlagen."); return; }
-  currentUser = null;
-  updateAuthInterface();
-  setStorageStatus("cloud", "Zentrale Sammlung · zum Bearbeiten anmelden");
-});
-document.querySelector("#authForm").addEventListener("submit", async event => {
-  event.preventDefault();
-  const errorField = document.querySelector("#authError");
-  const submitButton = event.currentTarget.querySelector('[type="submit"]');
-  errorField.textContent = "";
-  submitButton.disabled = true;
-  try {
-    if (!supabaseClient) throw new Error("Anmeldung momentan nicht verfügbar. Bitte die Seite neu laden.");
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
-      email: document.querySelector("#authEmail").value.trim(), password: document.querySelector("#authPassword").value
-    });
-    if (error || !data?.user) throw new Error("Anmeldung fehlgeschlagen. Bitte E-Mail-Adresse und Passwort prüfen.");
-    currentUser = data.user; updateAuthInterface(); closeAuth();
-    await loadRecipes(); normalizeAllRecipes(); render();
-  } catch (error) { errorField.textContent = error.message || "Anmeldung konnte nicht abgeschlossen werden."; }
-  finally { submitButton.disabled = false; }
-});
-
 document.querySelector("#addComponentButton").addEventListener("click", addComponent);
 document.querySelector("#imageFileInput").addEventListener("change", event => {
   const file = event.target.files[0];
@@ -1161,10 +1103,9 @@ document.querySelectorAll(".category-tab").forEach(tab => tab.addEventListener("
   document.querySelectorAll(".category-tab").forEach(item => item.classList.toggle("active", item === tab));
   render();
 }));
-[recipeModal, detailModal, document.querySelector("#authModal")].forEach(modal => modal.addEventListener("click", event => {
+[recipeModal, detailModal].forEach(modal => modal.addEventListener("click", event => {
   if (event.target === modal) {
     if (modal === recipeModal) closeForm();
-    else if (modal.id === "authModal") closeAuth();
     else modal.close();
   }
 }));
@@ -1182,23 +1123,12 @@ async function initialize() {
         recipes = localRecipes;
         localRecipeEtag = response.headers.get("ETag");
         setStorageStatus("file", "Sicher im Programmordner gespeichert");
-        document.querySelector("#authButton").hidden = true;
-        document.querySelector("#authUser").textContent = "Lokale Sammlung";
         normalizeAllRecipes();
         render();
         return;
       }
     } catch { /* Statische Vorschau verwendet den bisherigen Cloud-Speicher. */ }
   }
-  if (supabaseClient) {
-    const { data } = await supabaseClient.auth.getSession();
-    currentUser = data.session?.user || null;
-    supabaseClient.auth.onAuthStateChange((_event, session) => {
-      currentUser = session?.user || null;
-      updateAuthInterface();
-    });
-  }
-  updateAuthInterface();
   await loadRecipes();
   normalizeAllRecipes();
   render();

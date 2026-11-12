@@ -147,10 +147,10 @@
         if(mutation===failMutation && ambiguous)throw new Error('Antwort nach Schreiben verloren');
         return{data:clone(data),error:null};
       }});
-    const mock={from:()=>q('read'),auth:{getUser:async()=>({data:{user:currentUser}})}};
+    const mock={from:()=>q('read')};
     const cloudOriginals=[recipe('Alt A'),recipe('Alt B')];
     const seed=()=>{database=new Map(cloudOriginals.map((data,i)=>[data.id,{id:data.id,data:clone(data),updated_at:`2020-01-0${i+1}T00:00:00Z`,updated_by:'original-user'}]));mutation=0;};
-    supabaseClient=mock;currentUser={id:'test-user'};storageMode='cloud';adapter=createBackupAdapter();
+    supabaseClient=mock;storageMode='cloud';adapter=createBackupAdapter();
     seed();const cloudBefore=await adapter.snapshot();const cloudBundle=await B.inspect(file((await B.create([{...cloudOriginals[0],title:'Geändert'},recipe('Neu')])).blob));
     failMutation=0;await B.restore(cloudBundle,'replace',adapter,{safety:async()=>true});assert(database.size===2 && !database.has(cloudOriginals[1].id),'Cloud-Ersetzen per simulierten versionierten Einzelschritten');
     seed();failMutation=2;ambiguous=false;
@@ -179,7 +179,7 @@
     mock.storage={from:bucket=>({upload:async(path,blob,options)=>{if(uploadFails)return{error:{message:'Storage-Testfehler'}};storageCalls.push({bucket,path,options});const response=await fetch('/api/image',{method:'POST',headers:{'Content-Type':blob.type},body:blob});storageUrls.set(path,(await response.json()).path);return{error:null};},getPublicUrl:path=>({data:{publicUrl:storageUrls.get(path)}})})};
     const cloudWithImage=await B.inspect(file((await B.create([recipe('Cloud-Bild',png.path)])).blob));
     outcome=await B.restore(cloudWithImage,'merge',adapter);
-    assert(outcome.imageCount===1 && storageCalls[0].bucket==='recipe-images' && storageCalls[0].path.startsWith('test-user/restore-') && storageCalls[0].options.upsert===false,'Simulierter Supabase-Bildupload verwendet Bucket, Benutzerpfad und kollisionsfreien Upload');
+    assert(outcome.imageCount===1 && storageCalls[0].bucket==='recipe-images' && storageCalls[0].path.startsWith('public/restore-') && storageCalls[0].options.upsert===false,'Simulierter Supabase-Bildupload verwendet Bucket, öffentlichen Pfad und kollisionsfreien Upload');
     seed();uploadFails=true;
     await rejects(()=>B.restore(cloudWithImage,'merge',adapter),'Supabase-Storage-Fehler verhindert Rezeptimport',/Storage-Testfehler/);
     assert(B.snapshotEqual(cloudBeforeUploads,await adapter.snapshot()),'Fehlgeschlagener Cloud-Upload verändert keine Rezeptdaten');
