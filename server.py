@@ -3,6 +3,8 @@
 
 import argparse
 import json
+import hashlib
+import threading
 import os
 import uuid
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -14,6 +16,7 @@ ROOT = Path(__file__).resolve().parent
 DATA_FILE = ROOT / "data" / "recipes.json"
 MAX_REQUEST_SIZE = 5 * 1024 * 1024
 MAX_IMAGE_SIZE = 8 * 1024 * 1024
+RECIPE_LOCK = threading.RLock()
 
 
 class RecipeHandler(SimpleHTTPRequestHandler):
@@ -22,27 +25,57 @@ class RecipeHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
-    def send_json(self, status, payload):
+    def send_json(self, status, payload, etag=None):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if etag:
+            self.send_header("ETag", etag)
         self.end_headers()
         self.wfile.write(body)
 
+    def allow_request(self, write=False):
+        # Loopback server stays login-free, but rejects browser requests from
+        # foreign origins and Host headers used for DNS rebinding.
+        try:
+            host = urlparse("http://" + self.headers.get("Host", ""))
+            allowed = host.hostname in {"127.0.0.1", "localhost", "::1"} and host.port == self.server.server_port
+            origin = self.headers.get("Origin")
+            if write and origin:
+                source = urlparse(origin)
+                allowed = allowed and source.scheme == "http" and source.hostname in {"127.0.0.1", "localhost", "::1"} and source.port == self.server.server_port
+        except ValueError:
+            allowed = False
+        if not allowed:
+            self.close_connection = True
+            self.send_json(403, {"error": "Nur lokale Anfragen aus dem Küchenbuch sind erlaubt"})
+        return allowed
+
     def do_GET(self):
+        if not self.allow_request():
+            return
         parsed_path = urlparse(self.path)
         if parsed_path.path == "/api/recipes":
             try:
-                recipes = json.loads(DATA_FILE.read_text(encoding="utf-8"))
-                self.send_json(200, recipes)
-            except (OSError, json.JSONDecodeError) as error:
+                with RECIPE_LOCK:
+                    exists = DATA_FILE.exists()
+                    content = DATA_FILE.read_bytes() if exists else b""
+                recipes = json.loads(content.decode("utf-8")) if exists else []
+                if not isinstance(recipes, list) or any(not isinstance(item, dict) for item in recipes):
+                    raise ValueError("Die Rezeptdatei enthält keine gültige Rezeptliste")
+                json.dumps(recipes, allow_nan=False)
+                etag = '"' + hashlib.sha256(content).hexdigest() + '"'
+                self.send_json(200, recipes, etag)
+            except (OSError, UnicodeDecodeError, ValueError) as error:
                 self.send_json(500, {"error": f"Rezeptdatei konnte nicht gelesen werden: {error}"})
             return
         super().do_GET()
 
     def do_PUT(self):
+        if not self.allow_request(write=True):
+            return
         if urlparse(self.path).path != "/api/recipes":
             self.send_error(404)
             return
@@ -60,20 +93,31 @@ class RecipeHandler(SimpleHTTPRequestHandler):
         try:
             recipes = json.loads(self.rfile.read(length).decode("utf-8"))
             self.validate_recipes(recipes)
-            DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
-            temporary_file = DATA_FILE.with_suffix(".json.tmp")
-            temporary_file.write_text(
-                json.dumps(recipes, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            os.replace(temporary_file, DATA_FILE)
-            self.send_json(200, {"saved": True, "count": len(recipes)})
+            with RECIPE_LOCK:
+                expected = self.headers.get("If-Match")
+                if expected:
+                    content = DATA_FILE.read_bytes() if DATA_FILE.exists() else b""
+                    current = '"' + hashlib.sha256(content).hexdigest() + '"'
+                    if expected != current:
+                        self.send_json(409, {"error": "Die Rezeptdatei wurde inzwischen verändert"})
+                        return
+                DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+                temporary_file = DATA_FILE.with_suffix(".json.tmp")
+                temporary_file.write_text(
+                    json.dumps(recipes, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                os.replace(temporary_file, DATA_FILE)
+                etag = '"' + hashlib.sha256(DATA_FILE.read_bytes()).hexdigest() + '"'
+            self.send_json(200, {"saved": True, "count": len(recipes)}, etag)
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
             self.send_json(400, {"error": str(error)})
         except OSError as error:
             self.send_json(500, {"error": f"Rezeptdatei konnte nicht gespeichert werden: {error}"})
 
     def do_POST(self):
+        if not self.allow_request(write=True):
+            return
         if urlparse(self.path).path != "/api/image":
             self.send_error(404)
             return
@@ -117,11 +161,16 @@ class RecipeHandler(SimpleHTTPRequestHandler):
     def validate_recipes(recipes):
         if not isinstance(recipes, list):
             raise ValueError("Die Rezeptdaten müssen eine Liste sein")
+        json.dumps(recipes, allow_nan=False)
+        ids = set()
         required = {"id", "title", "category", "ingredients", "instructions", "links", "image"}
         categories = {"Vorspeise", "Hauptspeise", "Nachspeise"}
         for recipe in recipes:
             if not isinstance(recipe, dict) or not required.issubset(recipe):
                 raise ValueError("Ein Rezept ist unvollständig")
+            if not isinstance(recipe["id"], str) or not recipe["id"] or recipe["id"] in ids:
+                raise ValueError("Rezept-IDs müssen vorhanden und eindeutig sein")
+            ids.add(recipe["id"])
             if recipe["category"] not in categories:
                 raise ValueError("Ein Rezept enthält eine ungültige Kategorie")
             if not isinstance(recipe["ingredients"], list) or not isinstance(recipe["links"], list):

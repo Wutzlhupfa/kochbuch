@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=20261111-1" />
+    <link rel="stylesheet" href="styles.css?v=20261112-3" />
   </head>
   <body>
     <div class="page-shell">
@@ -90,15 +90,19 @@
 
           <div class="backup-panel" aria-labelledby="backupHeading">
             <div>
-              <p class="backup-kicker">Export &amp; Doppelsicherung</p>
+              <p class="backup-kicker">Export &amp; Datensicherung</p>
               <h3 id="backupHeading">Dein Rezeptbuch sicher aufbewahren</h3>
-              <p>PDF zum Lesen und Ausdrucken, JSON zur späteren Wiederherstellung aller Rezeptdaten.</p>
+              <p>PDF zum Lesen und Ausdrucken. Vollständige ZIP-Sicherung mit allen Rezeptdaten und echten Bilddateien.</p>
             </div>
             <div class="backup-actions">
               <button class="primary-button" id="exportPdfButton" type="button">Rezeptbuch als PDF</button>
-              <button class="secondary-button" id="exportBackupButton" type="button">Datensicherung (JSON)</button>
+              <button class="secondary-button" id="exportBackupButton" type="button">Vollständige Datensicherung erstellen</button>
+              <button class="secondary-button" id="restoreBackupButton" type="button">Datensicherung wiederherstellen</button>
+              <input id="backupFileInput" type="file" accept=".zip,.json,application/zip,application/json" hidden />
             </div>
           </div>
+          <p id="editorStatus" class="backup-status" role="status" aria-live="polite"></p>
+          <p id="backupStatus" class="backup-status" role="status" aria-live="polite"></p>
         </section>
       </main>
 
@@ -118,6 +122,9 @@
           <button class="icon-button" id="closeModalButton" type="button" aria-label="Fenster schließen">×</button>
         </div>
         <input id="recipeId" type="hidden" />
+        <div class="draft-panel" id="draftPrompt" hidden><p id="draftPromptText"></p><div class="draft-actions"><button class="primary-button" id="restoreDraftButton" type="button">Entwurf wiederherstellen</button><button class="secondary-button" id="discardDraftButton" type="button">Entwurf verwerfen</button></div></div>
+        <div class="review-notice" id="draftConflict" hidden><p id="draftConflictText"></p><button class="secondary-button" id="draftAsNewButton" type="button">Als neues Rezept weiterbearbeiten</button></div>
+        <p class="draft-status" id="draftStatus" role="status" aria-live="polite"></p>
 
         <div class="form-grid">
           <label class="full-width">Titel des Rezepts
@@ -207,7 +214,7 @@
         </div>
 
         <div class="form-actions">
-          <button class="secondary-button" id="cancelButton" type="button">Abbrechen</button>
+          <button class="secondary-button" id="cancelButton" type="button">Schließen · Entwurf behalten</button>
           <button class="primary-button" type="submit">Rezept speichern</button>
         </div>
       </form>
@@ -238,6 +245,26 @@
       </form>
     </dialog>
 
+    <dialog class="modal" id="restoreModal" aria-labelledby="restoreHeading">
+      <div class="recipe-form">
+        <div class="modal-header"><div><p class="eyebrow">Deine Datensicherung</p><h2 id="restoreHeading">Datensicherung wiederherstellen</h2></div><button class="icon-button" id="restoreClose" type="button" aria-label="Fenster schließen">×</button></div>
+        <p id="restoreWarnings" class="backup-warning"></p>
+        <label>Wiederherstellungsoption<select id="restoreMode"><option value="merge">Zusammenführen – vorhandene IDs unverändert lassen</option><option value="replace">Gesamte Sammlung ersetzen</option></select></label>
+        <p id="restorePreviewText"></p>
+        <div id="replaceWarning" class="review-notice" hidden><p>Ersetzen entfernt vorhandene Rezepte, die nicht im Backup enthalten sind, und überschreibt vorhandene IDs. Zuvor muss eine vollständige Sicherheitskopie erstellt und heruntergeladen werden.</p><label class="checkbox-label"><input id="replaceConfirm" type="checkbox" /> Ich möchte ausdrücklich die gesamte Sammlung ersetzen.</label></div>
+        <div id="restoreSafety" class="review-notice" hidden>
+          <p>Die Sicherheitskopie ist vollständig erstellt. Lade sie jetzt herunter. Prüfe, dass die ZIP-Datei auf deinem Gerät gespeichert ist. Der Browser kann den Abschluss des Downloads nicht selbst bestätigen.</p>
+          <button class="secondary-button" id="safetyDownload" type="button">Sicherheitskopie herunterladen</button>
+          <label class="checkbox-label"><input id="safetyReceived" type="checkbox" disabled /> Ich habe die Sicherheitskopie heruntergeladen und auf meinem Gerät gefunden.</label>
+          <button class="primary-button" id="safetyContinue" type="button" disabled>Jetzt ersetzen</button>
+          <button class="secondary-button" id="safetyCancel" type="button">Abbrechen</button>
+        </div>
+        <p id="restoreResult" class="backup-status" role="status" aria-live="polite"></p>
+        <p class="nutrition-note">Während des Imports dieses Fenster offen lassen. Bilder werden zuerst geprüft. Cloud-Änderungen werden einzeln gespeichert; bei Fehlern wird eine kontrollierte Rücknahme versucht. Bei Verbindungsabbruch oder gleichzeitigem Bearbeiten ist eine vollständige Rücknahme nicht garantiert.</p>
+        <div class="form-actions"><button class="primary-button" id="restoreConfirm" type="button">Wiederherstellung bestätigen</button></div>
+      </div>
+    </dialog>
+
     <template id="recipeCardTemplate">
       <article class="recipe-card">
         <button class="favorite-button card-favorite" type="button" aria-label="Als Favorit markieren">♡</button>
@@ -256,6 +283,10 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=20261111-1"></script>
+    <script src="vendor/fflate-0.8.2.min.js"></script>
+    <script src="app.js?v=20261112-3"></script>
+    <script src="drafts.js?v=20261112-3"></script>
+    <script src="backup.js?v=20261112-3"></script>
+    <script src="backup-ui.js?v=20261112-3"></script>
   </body>
 </html>

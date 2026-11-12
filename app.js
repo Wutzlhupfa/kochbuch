@@ -7,7 +7,11 @@ let storageMode = "checking";
 let currentUser = null;
 let recipeVersions = new Map();
 let editingRecipeVersion = null;
+let localRecipeEtag = null;
+let editorSaveInProgress = false;
 let cloudWriteInProgress = 0;
+let backupBusy = false;
+let cloudRefreshEpoch = 0;
 let cloudRefreshStarted = false;
 let activeCategory = "Alle";
 let searchTerm = "";
@@ -34,7 +38,8 @@ const recipeForm = document.querySelector("#recipeForm");
 function loadBrowserBackup() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
+    const items = saved ? JSON.parse(saved) : [];
+    return Array.isArray(items) ? items : [];
   } catch {
     return [];
   }
@@ -52,6 +57,7 @@ function updateAuthInterface() {
   const authUser = document.querySelector("#authUser");
   authButton.textContent = currentUser ? "Abmelden" : "Anmelden";
   authUser.textContent = currentUser?.email || "Nicht angemeldet";
+  if (recipeModal.open) RecipeDrafts.checkIdentity();
 }
 
 function openAuth() {
@@ -66,6 +72,7 @@ function closeAuth() {
 }
 
 function ensureCanEdit() {
+  if (backupBusy) return false;
   if (currentUser || storageMode === "file") return true;
   openAuth();
   return false;
@@ -91,24 +98,26 @@ async function loadPublishedRecipes() {
   return response.json();
 }
 
+async function fetchCloudRecipeRows(client = supabaseClient, columns = "id, data, updated_at", maxRecipes = Infinity) {
+  const rows = [], ids = new Set();
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await client.from("recipes").select(columns).order("id").range(offset, offset + 499);
+    if (error || !Array.isArray(data)) throw new Error(error?.message || "Ungültige Cloud-Antwort");
+    for (const row of data) {
+      if (!row.data || row.id !== row.data.id || ids.has(row.id)) throw new Error("Cloud-Datensätze sind unvollständig oder wurden während des Ladens verschoben. Bitte erneut laden.");
+      ids.add(row.id); rows.push(row);
+      if (rows.length > maxRecipes) throw new Error(`Sammlung größer als ${maxRecipes} Rezepte. Keine unvollständige Sicherung erstellt.`);
+    }
+    if (data.length < 500) return rows;
+  }
+}
+
 async function loadRecipes() {
   if (supabaseClient) {
     try {
-      const { data, error } = await supabaseClient
-        .from("recipes")
-        .select("id, data, updated_at")
-        .order("updated_at", { ascending: false });
-      if (error) throw error;
-      if (data.length) {
-        applyCloudRows(data);
-        setStorageStatus("cloud", currentUser
-          ? "Zentral in Supabase gespeichert"
-          : "Zentrale Sammlung · zum Bearbeiten anmelden");
-        return;
-      }
-
-      recipes = await loadPublishedRecipes();
-      setStorageStatus("published", "Veröffentlichte Sammlung · Cloud enthält noch keine Rezepte");
+      const data = await fetchCloudRecipeRows();
+      applyCloudRows(data);
+      setStorageStatus("cloud", currentUser ? "Zentral in Supabase gespeichert" : "Zentrale Sammlung · zum Bearbeiten anmelden");
       return;
     } catch (error) {
       console.error("Supabase konnte nicht geladen werden:", error);
@@ -132,9 +141,11 @@ function applyCloudRows(rows) {
 
 async function saveRecipeToCloud(recipe, { expectedVersion = null, isNew = false } = {}) {
   if (supabaseClient && currentUser) {
-    const authenticatedUser = await requireAuthenticatedCloudUser();
     cloudWriteInProgress += 1;
+    cloudRefreshEpoch += 1;
     try {
+      const authenticatedUser = await requireAuthenticatedCloudUser();
+      if (!isNew && !expectedVersion) throw new Error("Der Versionsstand fehlt; das Rezept wurde möglicherweise inzwischen verändert. Bitte neu laden.");
       const timestamp = new Date().toISOString();
       const row = {
         id: recipe.id,
@@ -174,9 +185,11 @@ async function saveRecipeToCloud(recipe, { expectedVersion = null, isNew = false
 
 async function deleteRecipeFromCloud(recipe) {
   if (supabaseClient && currentUser) {
-    await requireAuthenticatedCloudUser();
     cloudWriteInProgress += 1;
+    cloudRefreshEpoch += 1;
     try {
+      await requireAuthenticatedCloudUser();
+      if (!recipeVersions.get(recipe.id)) throw new Error("Der Versionsstand fehlt; das Rezept wurde möglicherweise inzwischen verändert. Bitte neu laden.");
       let query = supabaseClient.from("recipes").delete().eq("id", recipe.id);
       const expectedVersion = recipeVersions.get(recipe.id);
       if (expectedVersion) query = query.eq("updated_at", expectedVersion);
@@ -200,24 +213,22 @@ async function saveRecipesToLocalServer(items) {
   if (storageMode !== "file") throw new Error("Kein beschreibbarer Speicher verfügbar. Bitte anmelden oder server.py starten.");
   const response = await fetch("/api/recipes", {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(localRecipeEtag ? { "If-Match": localRecipeEtag } : {}) },
     body: JSON.stringify(items)
   });
-  if (!response.ok) throw new Error("Speichern im Programmordner fehlgeschlagen. Deine Änderung wurde nicht übernommen.");
+  if (!response.ok) throw new Error(response.status === 409 ? "Die lokale Sammlung wurde inzwischen verändert. Bitte neu laden. Deine Änderung wurde nicht übernommen." : "Speichern im Programmordner fehlgeschlagen. Deine Änderung wurde nicht übernommen.");
+  localRecipeEtag = response.headers.get("ETag");
   setStorageStatus("file", "Sicher im Programmordner gespeichert");
   return true;
 }
 
 async function refreshRecipesFromCloud({ updateStatus = true } = {}) {
-  if (!supabaseClient || cloudWriteInProgress) return false;
-  const { data, error } = await supabaseClient
-    .from("recipes")
-    .select("id, data, updated_at")
-    .order("updated_at", { ascending: false });
-  if (error) {
-    console.error("Cloud-Aktualisierung fehlgeschlagen:", error);
-    return false;
-  }
+  if (!supabaseClient || cloudWriteInProgress || backupBusy) return false;
+  const refreshEpoch = cloudRefreshEpoch;
+  let data;
+  try { data = await fetchCloudRecipeRows(); }
+  catch (error) { console.error("Cloud-Aktualisierung fehlgeschlagen:", error); return false; }
+  if (backupBusy || cloudWriteInProgress || refreshEpoch !== cloudRefreshEpoch) return false;
   applyCloudRows(data);
   normalizeAllRecipes();
   render();
@@ -273,15 +284,16 @@ function updateImagePreview() {
 
 async function uploadPendingImage() {
   if (!pendingImageFile) return formImage;
+  const imageInfo = await KochbuchBackup.imageInfo(new Uint8Array(await pendingImageFile.arrayBuffer()));
   if (supabaseClient) {
     if (!currentUser) throw new Error("Bitte zuerst anmelden, um Bilder hochzuladen.");
-    const extensionMap = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
-    const extension = extensionMap[pendingImageFile.type];
+    await requireAuthenticatedCloudUser();
+    const extension = imageInfo.ext;
     const uniqueId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
     const filename = `${currentUser.id}/recipe-${uniqueId}.${extension}`;
     const { error } = await supabaseClient.storage
       .from("recipe-images")
-      .upload(filename, pendingImageFile, { contentType: pendingImageFile.type, upsert: false });
+      .upload(filename, pendingImageFile, { contentType: imageInfo.mime, upsert: false });
     if (error) throw new Error(`Bild konnte nicht hochgeladen werden: ${error.message}`);
     const { data } = supabaseClient.storage.from("recipe-images").getPublicUrl(filename);
     formImage = data.publicUrl;
@@ -291,7 +303,7 @@ async function uploadPendingImage() {
   }
   const response = await fetch("/api/image", {
     method: "POST",
-    headers: { "Content-Type": pendingImageFile.type || "application/octet-stream" },
+    headers: { "Content-Type": imageInfo.mime },
     body: pendingImageFile
   });
   let result = {};
@@ -461,27 +473,6 @@ async function loadLatestRecipesForExport() {
   if (!recipes.length) throw new Error("Es sind noch keine Rezepte zum Exportieren vorhanden.");
 }
 
-function downloadJsonBackup() {
-  const exportedAt = new Date();
-  const backup = {
-    format: "kuechenbuch-backup",
-    version: 1,
-    exportedAt: exportedAt.toISOString(),
-    recipeCount: recipes.length,
-    recipes: sortedRecipesForExport()
-  };
-  const date = exportedAt.toISOString().slice(0, 10);
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `kuechenbuch-sicherung-${date}.json`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 function recipeBookHtml(items) {
   const generatedAt = new Intl.DateTimeFormat("de-DE", { dateStyle: "long", timeStyle: "short" }).format(new Date());
   const contents = items.map((recipe, index) => `<li><span>${index + 1}. ${escapeHtml(recipe.title)}</span><span>${escapeHtml(recipe.category || "Ohne Kategorie")}</span></li>`).join("");
@@ -518,14 +509,17 @@ function recipeBookHtml(items) {
       <p class="category">${escapeHtml(recipe.category || "Ohne Kategorie")}</p>
       <h2>${escapeHtml(recipe.title)}</h2>
       ${Number(recipe.servings) > 0 ? `<p class="servings">Grundrezept für ${escapeHtml(formatIngredientAmount(Number(recipe.servings)))} Portionen</p>` : ""}
+      ${recipeInformationHtml(recipe)}
+      ${normalizeTags(recipe.tags).length ? `<p class="recipe-tags">Tags: ${normalizeTags(recipe.tags).map(escapeHtml).join(" · ")}</p>` : ""}
       ${parts}
-      ${nutritionRows ? `<section class="extra"><h3>Nährwertangaben</h3><p class="caption">Angaben für ${escapeHtml(nutritionBasis)}</p><table><tbody>${nutritionRows}</tbody></table></section>` : ""}
+      ${nutritionRows ? `<section class="extra"><h3>Nährwertangaben</h3><p class="caption">Angaben für ${escapeHtml(nutritionBasis)}${needsNutritionReview(recipe) ? " · bitte manuell überprüfen" : ""}</p><table><tbody>${nutritionRows}</tbody></table></section>` : ""}
       ${links.length ? `<section class="extra"><h3>Links</h3><ul class="links">${links.map(url => `<li>${escapeHtml(url)}</li>`).join("")}</ul></section>` : ""}
     </article>`;
   }).join("");
 
   return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Küchenbuch</title><style>
-    :root{color:#243229;background:#fffdf8;font-family:Arial,sans-serif}*{box-sizing:border-box}body{margin:0;background:#ece9e0}.toolbar{position:sticky;z-index:10;top:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 20px;color:white;background:#243229}.toolbar p{margin:0;font-size:13px}.toolbar button{padding:10px 17px;border:0;border-radius:999px;color:#243229;background:#fffdf8;cursor:pointer;font-weight:700}.book{width:210mm;margin:18px auto;background:#fffdf8;box-shadow:0 8px 30px #0002}.cover,.contents,.recipe{padding:18mm 16mm}.cover{display:flex;min-height:270mm;flex-direction:column;justify-content:center;text-align:center}.mark{display:grid;width:25mm;height:25mm;margin:0 auto 15mm;place-items:center;border:1px solid #243229;border-radius:50%;font:42px Georgia,serif}.eyebrow,.category,.recipe-number{font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#526b54}.cover h1{margin:0;font:70px/1 Georgia,serif}.cover .subtitle{margin:8mm auto 0;max-width:120mm;color:#667068;font-size:17px}.cover .date{margin-top:25mm;color:#667068;font-size:12px}.contents{min-height:270mm}.contents h2,.recipe h2{margin:0 0 10mm;font:44px/1.05 Georgia,serif}.contents ol{margin:0;padding:0;list-style:none}.contents li{display:flex;justify-content:space-between;gap:15mm;padding:3mm 0;border-bottom:1px solid #dedbd2;font-size:13px}.contents li span:last-child{color:#667068}.recipe{position:relative;min-height:270mm;break-before:page}.recipe-number{position:absolute;right:16mm;top:18mm;color:#778078}.recipe-image{display:block;width:100%;height:65mm;margin-bottom:9mm;object-fit:cover}.category{margin:0 0 3mm}.recipe h2{margin-bottom:3mm}.servings{margin:0 0 10mm;color:#667068;font-size:12px}.part{margin-top:9mm;padding-top:7mm;border-top:1px solid #d8d5cc}.part h3,.extra h3{margin:0 0 5mm;font:26px Georgia,serif;color:#526b54}.part-columns{display:grid;grid-template-columns:42% 1fr;gap:12mm}.part h4{margin:0 0 3mm;font-size:11px;letter-spacing:.1em;text-transform:uppercase}.ingredients{margin:0;padding:0;list-style:none}.ingredients li{padding:2.2mm 0;border-bottom:1px solid #ebe8df;font-size:12px}.instructions{margin:0;white-space:pre-wrap;font-size:12px;line-height:1.6}.muted,.caption{color:#777f78}.extra{margin-top:9mm;padding-top:7mm;border-top:1px solid #d8d5cc;break-inside:avoid}.caption{margin:-3mm 0 3mm;font-size:10px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{padding:2mm 0;border-bottom:1px solid #ebe8df;text-align:left}td{text-align:right}.links{margin:0;padding-left:5mm;font-size:10px;line-height:1.5;overflow-wrap:anywhere}@page{size:A4;margin:0}@media print{body{background:white}.toolbar{display:none}.book{width:auto;margin:0;box-shadow:none}.cover,.contents,.recipe{min-height:297mm}.part,.part-columns,.ingredients li{break-inside:avoid}}
+    :root{color:#243229;background:#fffdf8;font-family:Arial,sans-serif}*{box-sizing:border-box}body{margin:0;background:#ece9e0}.toolbar{position:sticky;z-index:10;top:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 20px;color:white;background:#243229}.toolbar p{margin:0;font-size:13px}.toolbar button{padding:10px 17px;border:0;border-radius:999px;color:#243229;background:#fffdf8;cursor:pointer;font-weight:700}.book{overflow-wrap:anywhere;width:210mm;margin:18px auto;background:#fffdf8;box-shadow:0 8px 30px #0002}.cover,.contents,.recipe{padding:18mm 16mm}.cover{display:flex;min-height:270mm;flex-direction:column;justify-content:center;text-align:center}.mark{display:grid;width:25mm;height:25mm;margin:0 auto 15mm;place-items:center;border:1px solid #243229;border-radius:50%;font:42px Georgia,serif}.eyebrow,.category,.recipe-number{font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#526b54}.cover h1{margin:0;font:70px/1 Georgia,serif}.cover .subtitle{margin:8mm auto 0;max-width:120mm;color:#667068;font-size:17px}.cover .date{margin-top:25mm;color:#667068;font-size:12px}.contents{min-height:270mm}.contents h2,.recipe h2{margin:0 0 10mm;font:44px/1.05 Georgia,serif}.contents ol{margin:0;padding:0;list-style:none}.contents li{display:flex;justify-content:space-between;gap:15mm;padding:3mm 0;border-bottom:1px solid #dedbd2;font-size:13px}.contents li span:last-child{color:#667068}.recipe{position:relative;min-height:270mm;break-before:page}.recipe-number{position:absolute;right:16mm;top:18mm;color:#778078}.recipe-image{display:block;width:100%;height:65mm;margin-bottom:9mm;object-fit:cover}.category{margin:0 0 3mm}.recipe h2{margin-bottom:3mm}.servings{margin:0 0 10mm;color:#667068;font-size:12px}.part{margin-top:9mm;padding-top:7mm;border-top:1px solid #d8d5cc}.part h3,.extra h3{margin:0 0 5mm;font:26px Georgia,serif;color:#526b54}.part-columns>div{min-width:0}.part-columns{display:grid;grid-template-columns:42% 1fr;gap:12mm}.part h4{margin:0 0 3mm;font-size:11px;letter-spacing:.1em;text-transform:uppercase}.ingredients{margin:0;padding:0;list-style:none}.ingredients li{padding:2.2mm 0;border-bottom:1px solid #ebe8df;font-size:12px}.instructions{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.6}.muted,.caption{color:#777f78}.extra{margin-top:9mm;padding-top:7mm;border-top:1px solid #d8d5cc;break-inside:avoid}.caption{margin:-3mm 0 3mm;font-size:10px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{padding:2mm 0;border-bottom:1px solid #ebe8df;text-align:left}td{text-align:right}.recipe-information{margin-top:6mm;break-inside:avoid}.recipe-information h3{font:22px Georgia,serif}.recipe-information dl{display:flex;flex-wrap:wrap;gap:4mm 8mm;font-size:11px}.recipe-information dt{color:#667068}.recipe-information dd{margin:1mm 0}.recipe-information .nutrition-note,.recipe-tags{font-size:10px;color:#667068}.links{margin:0;padding-left:5mm;font-size:10px;line-height:1.5;overflow-wrap:anywhere}@page{size:A4;margin:0}@media print{body{background:white}.toolbar{display:none}.book{width:auto;margin:0;box-shadow:none}.cover,.contents,.recipe{min-height:297mm}.part,.part-columns,.ingredients li{break-inside:avoid}}
+    @page recipe-page{size:A4;margin:16mm}@media print{.recipe{page:recipe-page;min-height:265mm;padding:0}.recipe-number{top:0;right:0}}
   </style></head><body><div class="toolbar"><p>Wähle im Druckdialog „Als PDF sichern“.</p><button type="button" onclick="window.print()">Drucken / als PDF sichern</button></div><main class="book"><section class="cover"><div class="mark">K</div><p class="eyebrow">Meine Rezeptsammlung</p><h1>Küchenbuch</h1><p class="subtitle">${items.length} ${items.length === 1 ? "Rezept" : "Rezepte"} - zum Nachkochen, Teilen und Aufbewahren.</p><p class="date">Erstellt am ${escapeHtml(generatedAt)}</p></section><section class="contents"><p class="eyebrow">Inhalt</p><h2>Alle Rezepte</h2><ol>${contents}</ol></section>${recipesHtml}</main></body></html>`;
 }
 
@@ -603,7 +597,7 @@ function renderIngredientRows() {
   formComponents.forEach(component => {
     const group = document.createElement("section");
     group.className = "ingredient-group";
-    group.innerHTML = `<div class="ingredient-group-heading"><h4>${escapeHtml(component.name)}</h4><button class="secondary-button compact-button" type="button">＋ Zutat für ${escapeHtml(component.name)}</button></div><div class="ingredient-group-rows"><p class="ingredient-group-empty">Noch keine Zutaten in diesem Rezeptteil.</p></div>`;
+    group.innerHTML = `<div class="ingredient-group-heading"><h4>${escapeHtml(component.name)}</h4><button class="secondary-button compact-button" type="button" aria-label="Zutat für ${escapeHtml(component.name)} hinzufügen">＋ Zutat hinzufügen</button></div><div class="ingredient-group-rows"><p class="ingredient-group-empty">Noch keine Zutaten in diesem Rezeptteil.</p></div>`;
     group.querySelector("button").addEventListener("click", () => addIngredient({ componentId: component.id }));
     const rows = group.querySelector(".ingredient-group-rows");
     groupContainers.set(component.id, rows);
@@ -612,7 +606,7 @@ function renderIngredientRows() {
   formIngredients.forEach((ingredient, index) => {
     const row = document.createElement("article");
     row.className = "ingredient-row";
-    const unitOptions = [...new Set([...ingredientUnits, ingredient.unit])].map(unit => `<option value="${unit}"${unit === ingredient.unit ? " selected" : ""}>${unit}</option>`).join("");
+    const unitOptions = [...new Set([...ingredientUnits, ingredient.unit])].map(unit => `<option value="${escapeHtml(unit)}"${unit === ingredient.unit ? " selected" : ""}>${escapeHtml(unit)}</option>`).join("");
     const componentOptions = formComponents.map(component => `<option value="${escapeHtml(component.id)}"${component.id === ingredient.componentId ? " selected" : ""}>${escapeHtml(component.name)}</option>`).join("");
     row.innerHTML = `
       <label>Menge<input class="ingredient-amount-input" type="number" min="0" step="0.01" value="${escapeHtml(String(ingredient.amount ?? ""))}" placeholder="100"></label>
@@ -779,6 +773,7 @@ document.querySelector("#resetFiltersButton").addEventListener("click", () => {
 
 function render() {
   renderTagChoices();
+  document.querySelectorAll(".category-tab").forEach(tab => { tab.setAttribute("role", "tab"); tab.setAttribute("aria-selected", String(tab.dataset.category === activeCategory)); });
   const filtered = recipes.filter(matchesFilters);
   const compareTitles = (left, right) => left.title.localeCompare(right.title, "de", { sensitivity: "base" });
   filtered.sort((left, right) => {
@@ -814,6 +809,8 @@ function render() {
   });
 
   emptyState.hidden = filtered.length > 0;
+  emptyState.querySelector("h3").textContent = recipes.length ? "Keine passenden Rezepte" : "Noch keine Rezepte hier";
+  emptyState.querySelector("p").textContent = recipes.length ? "Passe die Suche oder die Filter an, um weitere Rezepte zu sehen." : "Füge dein erstes Rezept hinzu und beginne deine persönliche Sammlung.";
   recipeGrid.hidden = filtered.length === 0;
   document.querySelector("#countAll").textContent = recipes.length;
   document.querySelector("#countStarter").textContent = recipes.filter(r => r.category === "Vorspeise").length;
@@ -858,10 +855,13 @@ function openForm(recipe = null, expectedVersion = null) {
   renderIngredientRows();
   updateImagePreview();
   recipeModal.showModal();
+  RecipeDrafts.begin();
   setTimeout(() => document.querySelector("#titleInput").focus(), 50);
 }
 
-function closeForm() {
+function closeForm() { return RecipeDrafts.requestClose(); }
+
+function finishCloseForm() {
   clearPreviewObjectUrl();
   editingRecipeVersion = null;
   recipeModal.close();
@@ -970,7 +970,7 @@ function openDetail(id) {
           <button type="button" data-action="delete" title="Löschen" aria-label="Rezept löschen">⌫</button>
         </div>
       </div>
-      ${baseServings ? `<div class="servings-calculator"><label for="detailServingsInput">Portionen</label><input id="detailServingsInput" type="number" min="0.5" max="1000" step="0.5" value="${escapeHtml(String(baseServings))}"><span>Grundrezept für ${escapeHtml(formatIngredientAmount(baseServings))} Portionen</span></div>` : '<p class="servings-missing">Für dieses Rezept ist noch keine Grund-Portionszahl hinterlegt. Du kannst sie über „Bearbeiten“ ergänzen.</p>'}
+      ${baseServings ? `<div class="servings-calculator"><label for="detailServingsInput">Portionen</label><input id="detailServingsInput" type="number" min="0" step="any" value="${escapeHtml(String(baseServings))}"><span>Grundrezept für ${escapeHtml(formatIngredientAmount(baseServings))} Portionen</span></div>` : '<p class="servings-missing">Für dieses Rezept ist noch keine Grund-Portionszahl hinterlegt. Du kannst sie über „Bearbeiten“ ergänzen.</p>'}
       ${recipeInformationHtml(recipe)}
       <div class="tag-chips">${normalizeTags(recipe.tags).map(tag => `<span class="tag-chip">${escapeHtml(tag)}</span>`).join("")}</div>
       <div class="recipe-parts-detail">${partsHtml}</div>
@@ -1012,11 +1012,17 @@ async function deleteRecipe(recipe, expectedVersion = null) {
 
 recipeForm.addEventListener("submit", async event => {
   event.preventDefault();
-  if (!ensureCanEdit()) return;
+  if (!ensureCanEdit() || editorSaveInProgress) return;
+  editorSaveInProgress = true;
   const submitButton = event.currentTarget.querySelector('[type="submit"]');
   const originalButtonText = submitButton.textContent;
   submitButton.disabled = true;
   submitButton.textContent = "Wird gespeichert …";
+  if (!await RecipeDrafts.prepareSave()) {
+    editorSaveInProgress = false; submitButton.disabled = false; submitButton.textContent = originalButtonText; return;
+  }
+  recipeForm.querySelector(".form-grid").inert = true;
+  if (document.querySelector("#tagInput").value.trim()) addFormTag();
   let components = formComponents
     .filter(component => component.name.trim() || component.instructions.trim())
     .map((component, index) => ({
@@ -1039,6 +1045,8 @@ recipeForm.addEventListener("submit", async event => {
     alert(error.message);
     submitButton.disabled = false;
     submitButton.textContent = originalButtonText;
+    editorSaveInProgress = false; recipeForm.querySelector(".form-grid").inert = false;
+    RecipeDrafts.flush().catch(() => {});
     return;
   }
   const id = document.querySelector("#recipeId").value;
@@ -1069,15 +1077,20 @@ recipeForm.addEventListener("submit", async event => {
     await saveRecipeToCloud(recipe, { expectedVersion: editingRecipeVersion, isNew: !id });
     if (id) recipes = recipes.map(item => item.id === id ? recipe : item);
     else recipes = [recipe, ...recipes];
-    closeForm();
+    document.querySelector("#editorStatus").textContent = "Rezept erfolgreich gespeichert. Zugehöriger lokaler Entwurf wird entfernt.";
+    await RecipeDrafts.complete();
+    finishCloseForm();
     render();
   } catch (error) {
     alert(error.message);
+    await RecipeDrafts.flush().catch(() => {});
     if (error.message.includes("inzwischen")) {
-      closeForm();
+      RecipeDrafts.markConflict(error.message);
       await refreshRecipesFromCloud();
     }
   } finally {
+    editorSaveInProgress = false;
+    recipeForm.querySelector(".form-grid").inert = false;
     submitButton.disabled = false;
     submitButton.textContent = originalButtonText;
   }
@@ -1092,7 +1105,8 @@ document.querySelector("#authButton").addEventListener("click", async () => {
     openAuth();
     return;
   }
-  if (supabaseClient) await supabaseClient.auth.signOut();
+  try { const { error } = await supabaseClient.auth.signOut(); if (error) throw error; }
+  catch (error) { alert(error.message || "Abmelden fehlgeschlagen."); return; }
   currentUser = null;
   updateAuthInterface();
   setStorageStatus("cloud", "Zentrale Sammlung · zum Bearbeiten anmelden");
@@ -1103,22 +1117,18 @@ document.querySelector("#authForm").addEventListener("submit", async event => {
   const submitButton = event.currentTarget.querySelector('[type="submit"]');
   errorField.textContent = "";
   submitButton.disabled = true;
-  const { data, error } = await supabaseClient.auth.signInWithPassword({
-    email: document.querySelector("#authEmail").value.trim(),
-    password: document.querySelector("#authPassword").value
-  });
-  submitButton.disabled = false;
-  if (error) {
-    errorField.textContent = "Anmeldung fehlgeschlagen. Bitte E-Mail-Adresse und Passwort prüfen.";
-    return;
-  }
-  currentUser = data.user;
-  updateAuthInterface();
-  closeAuth();
-  await loadRecipes();
-  normalizeAllRecipes();
-  render();
+  try {
+    if (!supabaseClient) throw new Error("Anmeldung momentan nicht verfügbar. Bitte die Seite neu laden.");
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email: document.querySelector("#authEmail").value.trim(), password: document.querySelector("#authPassword").value
+    });
+    if (error || !data?.user) throw new Error("Anmeldung fehlgeschlagen. Bitte E-Mail-Adresse und Passwort prüfen.");
+    currentUser = data.user; updateAuthInterface(); closeAuth();
+    await loadRecipes(); normalizeAllRecipes(); render();
+  } catch (error) { errorField.textContent = error.message || "Anmeldung konnte nicht abgeschlossen werden."; }
+  finally { submitButton.disabled = false; }
 });
+
 document.querySelector("#addComponentButton").addEventListener("click", addComponent);
 document.querySelector("#imageFileInput").addEventListener("change", event => {
   const file = event.target.files[0];
@@ -1146,10 +1156,6 @@ document.querySelector("#removeImageButton").addEventListener("click", () => {
 document.querySelector("#searchInput").addEventListener("input", event => { searchTerm = event.target.value.trim(); render(); });
 document.querySelector("#sortSelect").addEventListener("change", event => { sortMode = event.target.value; render(); });
 document.querySelector("#exportPdfButton").addEventListener("click", event => runExport(event.currentTarget, "Wird vorbereitet …", openRecipeBookForPdf));
-document.querySelector("#exportBackupButton").addEventListener("click", event => runExport(event.currentTarget, "Wird gesichert …", async () => {
-  await loadLatestRecipesForExport();
-  downloadJsonBackup();
-}));
 document.querySelectorAll(".category-tab").forEach(tab => tab.addEventListener("click", () => {
   activeCategory = tab.dataset.category;
   document.querySelectorAll(".category-tab").forEach(item => item.classList.toggle("active", item === tab));
@@ -1167,10 +1173,14 @@ async function initialize() {
   if (["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) {
     try {
       const response = await fetch("/api/recipes", { cache: "no-store" });
+      if (!response.ok && response.status !== 404) {
+        recipes = []; setStorageStatus("error", "Lokale Rezeptdatei nicht lesbar. Keine Daten überschrieben; bitte Datei prüfen."); render(); return;
+      }
       const localRecipes = response.ok ? await response.json() : null;
       if (Array.isArray(localRecipes)) {
         supabaseClient = null;
         recipes = localRecipes;
+        localRecipeEtag = response.headers.get("ETag");
         setStorageStatus("file", "Sicher im Programmordner gespeichert");
         document.querySelector("#authButton").hidden = true;
         document.querySelector("#authUser").textContent = "Lokale Sammlung";
